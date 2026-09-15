@@ -4,6 +4,12 @@ Extensión de Chrome que reproduce sobre los VOD de Twitch **el audio original d
 
 Muchos streamers mandan a Twitch dos pistas de audio con la opción *VOD Track* de OBS: la del directo lleva la música, y la que Twitch guarda en el VOD no, para evitar el silenciado por copyright. Esa pista no se puede recuperar después desde Twitch; hay que grabarla mientras se emite. Un servidor propio la graba, y esta extensión la sincroniza sobre el VOD.
 
+![Panel del servidor: grabaciones de cada directo con el VOD al que corresponden](docs/panel-biblioteca.png)
+
+| Canales vigilados | La extensión sobre un VOD |
+|---|---|
+| ![Panel del servidor: canales vigilados](docs/panel-canales.png) | ![Ventana de la extensión con el audio original disponible](docs/extension-popup.png) |
+
 ## Qué hace la extensión
 
 - Detecta el VOD abierto en Twitch y pide al servidor el audio grabado de ese directo.
