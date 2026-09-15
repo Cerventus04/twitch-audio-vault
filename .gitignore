@@ -1,0 +1,10 @@
+# Copias de trabajo de content.js
+*.estable
+*.encadenado-ok
+*.bak
+
+# Notas internas
+PLAN-*.md
+
+.DS_Store
+Thumbs.db

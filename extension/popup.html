@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  /* Chrome ya redondea el marco del popup, pero no admite fondo
+     transparente: si el body no pinta, asoma su blanco por las esquinas.
+     Asi que se rellena hasta el borde y el recorte lo hace el navegador. */
+  html, body {
+    margin: 0; padding: 0;
+    background: #18181b;
+    color: #efeff1;
+    font: 13px/1.5 "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  .shell {
+    width: 258px;
+    padding: 14px;
+  }
+  h1 {
+    font-size: 14px; margin: 0 0 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h1 img { width: 18px; height: 18px; border-radius: 5px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  /* Un nombre de canal largo no debe ensanchar ni romper el popup. */
+  #state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #adadb8; flex: none; }
+  .dot.ok { background: #00f593; box-shadow: 0 0 8px #00f593; }
+  .dot.bad { background: #ff5b5b; }
+  .muted { color: #adadb8; font-size: 12px; margin-top: 6px; }
+  a { color: #a970ff; }
+  hr { border: 0; border-top: 1px solid #2f2f35; margin: 13px 0; }
+  .section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+    color: #adadb8; margin-bottom: 7px;
+  }
+
+  /* --- controles del VOD, solo utiles si hay audio cargado --- */
+  #vod-status { font-size: 12.5px; }
+  #vod-status.on { color: #00f593; }
+  #vod-status.off { color: #ff8f8f; }
+  /* A que altura del VOD cae el trozo que suena. Numeros alineados, que se
+     leen contra la barra de tiempo de Twitch. */
+  #vod-tramo {
+    font-size: 11.5px; color: #adadb8; margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  #controls { margin-top: 10px; }
+  #controls.disabled { opacity: .4; pointer-events: none; }
+  .hint-line { font-size: 11.5px; color: #6e6e78; display: none; }
+  label.line {
+    display: flex; align-items: center; gap: 8px;
+    color: #adadb8; font-size: 12px; margin: 8px 0;
+  }
+  input[type=range] { accent-color: #9147ff; flex: 1; min-width: 0; }
+  input[type=checkbox] { accent-color: #9147ff; }
+  output {
+    font-variant-numeric: tabular-nums; color: #efeff1;
+    min-width: 44px; text-align: right;
+  }
+
+
+</style>
+</head>
+<body>
+<div class="shell">
+  <h1><img src="icons/icon32.png" alt="">Twitch Audio Vault</h1>
+
+  <div class="row"><span class="dot" id="dot"></span><span id="state">comprobando…</span></div>
+  <div class="muted" id="detail"></div>
+
+  <hr>
+
+  <div class="section-title">Este VOD</div>
+  <div id="vod-status">—</div>
+  <div id="vod-tramo"></div>
+
+  <div id="controls" class="disabled">
+    <label class="line">
+      <input type="checkbox" id="use-vault" checked>
+      <span>Usar audio grabado</span>
+    </label>
+    <label class="line" id="vol-row">
+      <span>Volumen</span>
+      <input type="range" id="vol" min="0" max="1" step="0.01" value="1">
+      <output id="vol-out">100%</output>
+    </label>
+    <div class="line hint-line" id="vol-nota">
+      Volumen y silencio: usa los del reproductor de Twitch.
+    </div>
+  </div>
+
+</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

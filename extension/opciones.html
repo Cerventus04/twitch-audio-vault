@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Twitch Audio Vault</title>
+<style>
+  body {
+    margin: 0; padding: 24px; background: #18181b; color: #efeff1;
+    font: 14px/1.6 "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+  .caja { max-width: 480px; }
+  h1 { font-size: 17px; margin: 0 0 4px; }
+  p { color: #adadb8; }
+  code { background: #1f1f23; padding: 1px 5px; border-radius: 4px; }
+  button {
+    background: #9147ff; color: #fff; border: 0; border-radius: 6px;
+    padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #a970ff; }
+  #estado { margin-top: 14px; }
+  .ok { color: #00f593; }
+  .bad { color: #ff8f8f; }
+</style>
+</head>
+<body>
+<div class="caja">
+  <h1>Permiso para el servidor remoto</h1>
+  <p id="explica">Nada pendiente.</p>
+  <button id="dar" hidden>Dar permiso</button>
+  <div id="estado"></div>
+  <p style="margin-top:22px">
+    El servidor se elige en la pestaña <b>Ajustes</b> del panel, no aqui. Esta
+    ventana solo existe porque el permiso sobre un dominio tiene que pedirlo
+    una pagina de la extension.
+  </p>
+</div>
+<script src="opciones.js"></script>
+</body>
+</html>
