@@ -1,0 +1,32 @@
+# Configuracion real: lleva las credenciales de Twitch y el token.
+# Copia config.example.json a config.json y rellenala.
+config.json
+.env
+
+# Datos: grabaciones, indices y base de datos.
+grabaciones/
+data/
+*.aac
+*.ts
+*.mp4
+*.m4s
+*.idx
+*.m4idx
+*.db
+*.db-wal
+*.db-shm
+
+# Registros y temporales
+*.log
+*.tstmp
+_tmp*/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Copias de trabajo
+*.bak
+*.bak-*

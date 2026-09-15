@@ -1,0 +1,30 @@
+# Caddy saca y renueva el certificado de Let's Encrypt sin configuracion:
+# basta con que el dominio apunte a este servidor y los puertos 80 y 443
+# esten abiertos.
+
+{$VAULT_DOMAIN} {
+	encode zstd gzip
+
+	# El audio se sirve por partes (peticiones Range) y puede ser de horas:
+	# sin estos margenes Caddy cortaria la reproduccion.
+	reverse_proxy vault:8710 {
+		flush_interval -1
+		transport http {
+			response_header_timeout 5m
+			read_timeout 30m
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+	}
+}

@@ -1,0 +1,52 @@
+# Despliegue en servidor: la app detras de Caddy, que se encarga del HTTPS.
+#
+# Antes de levantarlo, crea un fichero .env junto a este con:
+#   VAULT_DOMAIN=audio.tudominio.com
+#   VAULT_AUTH_TOKEN=una-contraseña-larga
+#   VAULT_CLIENT_ID=...
+#   VAULT_CLIENT_SECRET=...
+#
+# Y luego:  docker compose up -d
+
+services:
+  vault:
+    build: .
+    restart: unless-stopped
+    environment:
+      VAULT_HOST: 0.0.0.0
+      VAULT_PORT: 8710
+      VAULT_AUDIO_DIR: /data
+      # Los ajustes viven en el volumen: si no, cada reconstruccion de la
+      # imagen se llevaria por delante lo que cambies desde el panel.
+      VAULT_CONFIG: /data/config.json
+      VAULT_AUTH_TOKEN: ${VAULT_AUTH_TOKEN:?falta la contraseña}
+      VAULT_CLIENT_ID: ${VAULT_CLIENT_ID:-}
+      VAULT_CLIENT_SECRET: ${VAULT_CLIENT_SECRET:-}
+      # La retencion y la frecuencia de sondeo NO van aqui: se cambian desde
+      # el panel, y una variable de entorno las pisaria en silencio.
+      VAULT_PUBLIC_ORIGIN: https://${VAULT_DOMAIN}
+    volumes:
+      - audio:/data
+    # Sin puertos publicados: solo Caddy llega hasta el.
+    expose:
+      - "8710"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      VAULT_DOMAIN: ${VAULT_DOMAIN:?falta el dominio}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - vault
+
+volumes:
+  audio:
+  caddy_data:
+  caddy_config:

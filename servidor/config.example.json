@@ -1,0 +1,11 @@
+{
+  "client_id": "",
+  "client_secret": "",
+  "audio_dir": "grabaciones",
+  "poll_seconds": 60,
+  "audio_quality": "audio_only,best",
+  "retention_days": 0,
+  "port": 8710,
+  "host": "127.0.0.1",
+  "auth_token": ""
+}

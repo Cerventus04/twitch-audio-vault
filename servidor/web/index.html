@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twitch Audio Vault</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/icon32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon192.png">
+<link rel="apple-touch-icon" href="/icons/icon180.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- Solo aparece si el servidor tiene contraseña (despliegue remoto) -->
+<div class="gate" id="gate">
+  <form class="gate-box" id="gate-form">
+    <img src="/icons/icon128.png" alt="" class="gate-logo">
+    <h1>Audio Vault</h1>
+    <p>Este servidor esta protegido con contraseña.</p>
+    <input type="password" id="gate-pass" placeholder="Contraseña" autocomplete="current-password" autofocus>
+    <button class="btn primary" type="submit">Entrar</button>
+    <span class="msg bad" id="gate-msg"></span>
+  </form>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="logo" src="/icons/icon32.png" alt="">
+    <span>Audio Vault</span>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="channels">Canales</button>
+    <button class="tab" data-view="library">Biblioteca</button>
+    <button class="tab" data-view="settings">Ajustes</button>
+  </nav>
+
+  <div class="status" id="status-pill">
+    <span class="dot"></span><span id="status-text">conectando…</span>
+  </div>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------ resumen -->
+  <section class="stats" id="stats">
+    <div class="stat">
+      <span class="stat-value" id="stat-channels">—</span>
+      <span class="stat-label">canales vigilados</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="stat-live">—</span>
+      <span class="stat-label">grabando ahora</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="stat-recordings">—</span>
+      <span class="stat-label">grabaciones</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="stat-disk">—</span>
+      <span class="stat-label">en disco</span>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------ canales -->
+  <section class="view active" id="view-channels">
+    <div class="view-head">
+      <div>
+        <h2>Canales vigilados</h2>
+        <p class="sub">Se graba el audio en cuanto cualquiera de ellos empieza a emitir.</p>
+      </div>
+    </div>
+
+    <form class="addbar" id="add-form">
+      <input id="channel-input" type="text" spellcheck="false" autocomplete="off"
+             placeholder="Nombre del canal o su URL">
+      <button class="btn primary" type="submit">Añadir</button>
+    </form>
+
+    <div id="channel-list" class="cards"></div>
+  </section>
+
+  <!-- --------------------------------------------------- biblioteca -->
+  <section class="view" id="view-library">
+    <div class="view-head">
+      <div>
+        <h2>Grabaciones</h2>
+        <p class="sub">El audio capturado de cada directo, con el VOD al que corresponde.</p>
+      </div>
+      <!-- Desplegable propio: la lista del <select> nativo la pinta el sistema
+           operativo y no admite estilos, asi que desentonaba con el resto. -->
+      <div class="dropdown" id="filter-canal">
+        <button type="button" class="dd-btn" id="dd-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="dd-label">Todos los canales</span>
+          <svg class="dd-chevron" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke="currentColor"
+                  stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <ul class="dd-menu" id="dd-menu" role="listbox" tabindex="-1"></ul>
+      </div>
+    </div>
+    <div id="recording-list" class="rows"></div>
+  </section>
+
+  <!-- ------------------------------------------------------ ajustes -->
+  <section class="view" id="view-settings">
+    <div class="view-head">
+      <div>
+        <h2>Ajustes</h2>
+        <p class="sub">Credenciales, almacenamiento y cierre del programa.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Credenciales de Twitch</h3>
+        <span class="chip" id="cred-chip">sin comprobar</span>
+      </div>
+      <p class="hint">
+        Crea una aplicacion en
+        <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noreferrer">dev.twitch.tv</a>
+        (tipo <b>Confidencial</b>, redireccion <code>http://localhost</code>) y pega
+        aqui sus claves. El nombre no puede contener la palabra «Twitch».
+      </p>
+      <div class="fields">
+        <label class="field">
+          <span>Client ID</span>
+          <input id="cfg-client-id" type="text" spellcheck="false" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Client Secret</span>
+          <input id="cfg-client-secret" type="password" autocomplete="off">
+        </label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>Grabacion</h3></div>
+      <div class="fields">
+        <label class="field wide">
+          <span>Carpeta de las grabaciones</span>
+          <input id="cfg-audio-dir" type="text" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Comprobar directos cada</span>
+          <div class="with-unit"><input id="cfg-poll" type="number" min="15" max="900"><em>segundos</em></div>
+        </label>
+        <label class="field">
+          <span>Borrar grabaciones con mas de</span>
+          <div class="with-unit"><input id="cfg-retention" type="number" min="0" max="3650"><em>dias (0 = nunca)</em></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Solo sirve de algo con la extension puesta: es ella quien guarda esto,
+         no el servidor. Si no esta, `puente.js` no lo activa y se explica. -->
+    <div class="panel" id="panel-extension">
+      <div class="panel-head">
+        <h3>Extension de Chrome</h3>
+        <span class="chip" id="ext-chip">sin detectar</span>
+      </div>
+      <p class="hint" id="ext-hint">
+        Con la extension instalada, aqui se elige a que servidor pregunta
+        cuando abres un VOD en Twitch. Si el servidor es este mismo ordenador
+        no hay nada que tocar.
+      </p>
+      <div class="fields">
+        <label class="field wide">
+          <span>Direccion del servidor</span>
+          <input id="ext-server" type="text" spellcheck="false"
+                 placeholder="http://localhost:8710" disabled>
+        </label>
+        <label class="field wide">
+          <span>Contraseña (solo si el servidor es remoto)</span>
+          <input id="ext-token" type="password" placeholder="vacio si es local" disabled>
+        </label>
+      </div>
+      <div class="save-row">
+        <button class="btn" id="btn-save-ext" disabled>Guardar en la extension</button>
+        <span id="ext-msg" class="msg"></span>
+      </div>
+    </div>
+
+    <div class="save-row">
+      <button class="btn primary" id="btn-save-config">Guardar cambios</button>
+      <span id="config-msg" class="msg"></span>
+    </div>
+
+    <div class="panel danger-zone">
+      <div class="panel-head"><h3>Cerrar el programa</h3></div>
+      <p class="hint">Se ejecuta sin ventana, asi que se cierra desde aqui. Las
+         grabaciones en curso se cierran antes de salir.</p>
+      <button class="btn danger" id="btn-quit">Cerrar Audio Vault</button>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<!-- Dialogo propio: el confirm() del navegador rompe el aspecto de la app -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 id="modal-title"></h3>
+    <p id="modal-text"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="modal-cancel">Cancelar</button>
+      <button class="btn danger" id="modal-ok">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -29,7 +29,21 @@ Muchos streamers mandan a Twitch dos pistas de audio con la opción *VOD Track* 
 2. **Cargar descomprimida** → elegir la carpeta `extension`.
 3. En las opciones, indicar la URL del servidor (por defecto `http://localhost:8710`) y el token si lo tiene.
 
-Requiere el servidor de grabación, que no está en este repositorio.
+Requiere el servidor de grabación, que está en [`servidor/`](servidor).
+
+## Las dos partes
+
+El proyecto son dos piezas que se hablan por HTTP. Cada una tiene su propio
+README con los detalles.
+
+| Carpeta | Qué es |
+|---|---|
+| [`extension/`](extension) | La extensión de Chrome que reproduce el audio sobre el VOD |
+| [`servidor/`](servidor) | El grabador en Python y su API — [README](servidor/README.md) |
+
+El servidor vigila los canales y graba el audio de los directos; la extensión se
+lo pide y lo sincroniza sobre el VOD. Sin servidor la extensión no tiene nada
+que reproducir.
 
 ## Estructura
 
@@ -41,6 +55,12 @@ extension/
   puente.js       conecta la extensión con la web del servidor
   popup.*         estado y controles rápidos
   opciones.*      configuración
+
+servidor/
+  run.py          arranque
+  vault/          grabador, API y lectura de los formatos de Twitch
+  web/            panel de control
+  despliegue/     guía e instalador para un servidor Linux
 ```
 
 ---
