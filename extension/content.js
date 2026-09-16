@@ -1117,6 +1117,7 @@ function resync() {
 function tick() {
   if (!enabled || !audio || !video || !track) return;
   if (!vigilarElemento()) return;
+  if (!sigueSiendoElVod()) return;
 
   if (cambiando || seekUsuario || saltoInterno || video.seeking) return;
   if (document.hidden && trozoActual && trozoActual !== trozoFallido) liderAudio("tick-audio-master");
@@ -1468,6 +1469,41 @@ function soltarTeclasDeMedios() {
  * Twitch el reproductor anterior puede quedarse ahi, oculto, mientras el nuevo
  * se monta al lado. Por eso se vuelve a elegir cual es el principal.
  */
+// Portada de un canal: la URL no dice que suena, asi que lo que decidio
+// enganchar (duracion FIJA e igual a la del VOD grabado) hay que seguir
+// comprobandolo. Si el canal arranca directo, Twitch cambia lo que suena SIN
+// cambiar la URL: unas veces con el mismo <video> (nadie lo notaba) y otras con
+// uno nuevo, que `vigilarElemento` reenganchaba creyendo que era el mismo VOD.
+// Resultado: el audio del directo anterior sonando encima del nuevo.
+// En /videos/<id> no hace falta: ahi la URL si garantiza el VOD.
+const TOLERANCIA_CANAL = 25; // la misma que usa enterCanal para elegir
+let duracionCanal = null;
+
+function sigueSiendoElVod() {
+  if (duracionCanal === null) return true;
+  const d = video.duration;
+  // NaN: el reproductor esta cambiando de fuente y aun no sabe su duracion.
+  // No se decide nada con eso; se espera a la siguiente vuelta.
+  if (Number.isNaN(d)) return false;
+  // Un VOD tiene duracion finita y fija. Un directo da Infinity, o una finita
+  // que no se parece en nada (empieza desde cero y crece).
+  if (Number.isFinite(d) && Math.abs(d - duracionCanal) <= TOLERANCIA_CANAL) return true;
+  // Siempre a consola, no solo con DEPURAR: es un caso raro que no se puede
+  // provocar a voluntad (hace falta que el canal arranque directo), asi que la
+  // unica prueba de que funciono es que quede escrito cuando pase.
+  console.info("[TAV] canal: ya no suena el VOD (dur=" + d + ", esperada=" +
+    Math.round(duracionCanal) + "): desenganchando");
+  const clave = claveRuta;
+  teardown();
+  // Se vuelve a mirar que suena, como si se acabara de entrar. Si es el
+  // directo, enterCanal lo dira y no enganchara nada.
+  claveRuta = clave;
+  intentos = 0;
+  proximoIntento = Date.now() + 4000;
+  arrancarRuta();
+  return false;
+}
+
 function vigilarElemento() {
   if (!video) return false;
   const nuevo = videoPrincipal();
@@ -1637,6 +1673,7 @@ function teardown() {
   trozoActual = null;
   cambiando = false;
   currentVod = null;
+  duracionCanal = null;
   nudge = 0;
   baseOffset = 0;
   setStatus("Esto no es un VOD");
@@ -1740,6 +1777,7 @@ async function enterCanal(login) {
     return;
   }
   await enterVod(cual.vod, el);
+  if (claveRuta === mia && track) duracionCanal = duracion;
 }
 
 // Que estamos mirando ahora mismo: "v<id>" un VOD, "c<login>" una portada.
