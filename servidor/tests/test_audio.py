@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import struct  # noqa: E402
 
-from vault import adts, db, mp4idx, server, twitch  # noqa: E402
+from vault import adts, db, mp4, mp4idx, server, tsdemux, twitch  # noqa: E402
 
 DATOS = bytes([0xFF]) + bytes(i % 251 for i in range(1, 1000))  # 1000 bytes, "AAC"
 
@@ -79,6 +79,7 @@ def main() -> None:
 
     indice_incremental()
     indice_mp4()
+    demultiplexado_ts()
     directo_de_canal_renombrado()
     grabaciones_traidas_de_otra_maquina()
     print("ok")
@@ -138,6 +139,13 @@ def indice_mp4() -> None:
         datos += segmento(1000 + 2 * i)
     datos = bytes(datos)
 
+    # El instante del primer audio, que es el ancla de la sincronia con el
+    # VOD: el grabador lo lee mientras llega, a trozos.
+    lector = mp4.Lector()
+    for i in range(0, len(datos), 50):
+        lector.feed(datos[i : i + 50])
+    assert lector.tiempo == 1000.0, lector.tiempo
+
     entero, creciendo = TMP / "entero.mp4", TMP / "creciendo.mp4"
     entero.write_bytes(datos)
     # Cortado a mitad del segmento 10, que lleva marca: su styp ya escrito, su moof aun no.
@@ -160,6 +168,55 @@ def indice_mp4() -> None:
     # Despues de la discontinuidad toca la segunda inicializacion.
     cab, principio, fin, real = mp4idx.corte(entero, 41, 0)
     assert (cab, principio, fin) == (inits[1], inicio_seg[20], len(datos)), (cab, principio, fin)
+
+
+def demultiplexado_ts() -> None:
+    """Del MPEG-TS del directo sale el AAC exacto y el PTS del primer audio."""
+
+    def paquete(pid: int, carga: bytes, inicio: bool, cc: int) -> bytes:
+        cab = bytes([0x47, (0x40 if inicio else 0) | pid >> 8, pid & 0xFF])
+        if len(carga) == 184:
+            return cab + bytes([0x10 | cc]) + carga
+        # Relleno con campo de adaptacion, como hace un multiplexor real.
+        relleno = 183 - len(carga)
+        adapt = bytes([relleno]) + (b"\x00" + b"\xff" * (relleno - 1) if relleno else b"")
+        return cab + bytes([0x30 | cc]) + adapt + carga
+
+    def psi(cuerpo: bytes) -> bytes:  # puntero + seccion + CRC (no se comprueba) + relleno
+        seccion = cuerpo[:1] + struct.pack(">H", 0xB000 | (len(cuerpo) - 3 + 4)) + cuerpo[3:]
+        return (b"\x00" + seccion + bytes(4)).ljust(184, b"\xff")
+
+    pat = psi(b"\x00\x00\x00" + b"\x00\x01\xC1\x00\x00" + b"\x00\x01\xE1\x00")
+    pmt = psi(b"\x02\x00\x00" + b"\x00\x01\xC1\x00\x00\xE1\x01\xF0\x00" + b"\x0F\xE1\x01\xF0\x00")
+
+    def pts5(ticks: int) -> bytes:
+        return bytes([0x21 | (ticks >> 29) & 0x0E, (ticks >> 22) & 0xFF,
+                      ((ticks >> 14) & 0xFE) | 1, (ticks >> 7) & 0xFF, ((ticks << 1) & 0xFE) | 1])
+
+    trama = bytes([0xFF, 0xF1, 0x4C, 0x80, 100 >> 3, ((100 & 7) << 5) | 0x1F, 0xFC]) + bytes(93)
+    flujo = bytearray(b"basura-antes-de-sincronizar")
+    flujo += paquete(0, pat, True, 0) + paquete(0x100, pmt, True, 0)
+    esperado = bytearray()
+    cc = 0
+    for k in range(6):
+        audio = trama * (3 + k)  # PES de distinto tamaño: unos caben en uno, otros no
+        esperado += audio
+        pes = b"\x00\x00\x01\xC0\x00\x00\x80\x80\x05" + pts5(111105000 + k * 6000) + audio
+        for i in range(0, len(pes), 184):
+            flujo += paquete(0x101, pes[i : i + 184], i == 0, cc)
+            cc = (cc + 1) % 16
+
+    d = tsdemux.Demuxer()
+    salida = bytearray()
+    # Trozos de tamaño irregular, como llegan por la red.
+    i, tamaños = 0, [1000, 7, 333, 188, 1, 4096]
+    while i < len(flujo):
+        n = tamaños[i % len(tamaños)]
+        salida += d.feed(bytes(flujo[i : i + n]))
+        i += n
+    salida += d.flush()
+    assert bytes(salida) == bytes(esperado), (len(salida), len(esperado))
+    assert d.primer_pts == 111105000 / 90000, d.primer_pts
 
 
 def directo_de_canal_renombrado() -> None:
