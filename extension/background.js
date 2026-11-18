@@ -11,6 +11,11 @@ importScripts("ajustes.js");
 // Local o remoto segun lo elegido en el popup (ver ajustes.js).
 const ajustes = servidorActivo;
 
+// fetch no tiene limite propio: un servidor que acepta la conexion y no
+// contesta dejaba la pestaña esperando para siempre, y con ella el cerrojo
+// que impide arrancar cualquier otro VOD hasta recargar la pagina.
+const ESPERA_SERVIDOR = 20000;
+
 /** Quita la barra final para poder concatenar rutas sin duplicarla. */
 const limpiar = (url) => String(url || "").trim().replace(/\/+$/, "");
 
@@ -19,7 +24,11 @@ async function call(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (token) headers["X-Auth-Token"] = token;
 
-  const res = await fetch(limpiar(serverUrl) + path, { ...options, headers });
+  const res = await fetch(limpiar(serverUrl) + path, {
+    ...options,
+    headers,
+    signal: AbortSignal.timeout(ESPERA_SERVIDOR),
+  });
   const text = await res.text();
   let data = null;
   try {
@@ -62,7 +71,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
         const { token } = await ajustes();
         const cab = { Range: "bytes=0-0" };
         if (token) cab["X-Auth-Token"] = token;
-        const r = await fetch(msg.url, { headers: cab });
+        const r = await fetch(msg.url, {
+          headers: cab,
+          signal: AbortSignal.timeout(ESPERA_SERVIDOR),
+        });
         const cruda = r.headers.get("X-Dura-Real");
         // La cabecera ya esta. El cuerpo no se usa, y si no se cancela sigue
         // bajando por detras: si el servidor no respeta el Range en algun
@@ -81,7 +93,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
         respond({ ok: false, error: "peticion desconocida" });
       }
     } catch (e) {
-      respond({ ok: false, error: String(e.message || e) });
+      const error = e && e.name === "TimeoutError"
+        ? "El servidor no contesta"
+        : String(e.message || e);
+      respond({ ok: false, error });
     }
   })();
   return true; // la respuesta llega de forma asincrona
