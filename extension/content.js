@@ -441,7 +441,12 @@ function volumenEfectivo() {
 
 /** Trozo que cubre ese segundo del VOD, o null si cae en un hueco. */
 function trozoPara(t) {
-  for (const s of trozos) {
+  // De atras adelante: si dos trozos se solapan, vale el que empieza despues.
+  // Su principio sale del PTS y es exacto; el final del anterior es la hora en
+  // que se cerro la grabacion, que se pasa del audio real (streamlink espera
+  // hasta su timeout antes de darla por acabada). Eligiendo el viejo, el
+  // principio del nuevo no sonaba: el viejo ya no tiene audio ahi.
+  for (const s of [...trozos].reverse()) {
     const ini = s.inicio;
     // Si aun se esta grabando no se sabe donde acaba: se fia de la duracion
     // que reporte el propio fichero una vez cargado.

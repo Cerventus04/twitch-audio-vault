@@ -70,7 +70,7 @@ servidor/
   despliegue/     guía e instalador para un servidor Linux
   tests/          pruebas del servidor: py servidor/tests/test_audio.py
 
-tests/            prueba de la extensión: node tests/content_carrera.js
+tests/            prueba de la extensión: node tests/content_test.js
 ```
 
 ---

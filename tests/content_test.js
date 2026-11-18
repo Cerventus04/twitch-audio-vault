@@ -1,7 +1,9 @@
-// Cambiar de VOD mientras se espera al servidor no debe enganchar el audio del
-// VOD anterior en la pagina nueva, y el nuevo debe pedirse en el acto.
+// Pruebas de content.js:
+// - Cambiar de VOD mientras se espera al servidor no debe enganchar el audio
+//   del VOD anterior en la pagina nueva, y el nuevo debe pedirse en el acto.
+// - Si dos trozos de grabacion se solapan, manda el que empieza despues.
 //
-//   node tests/content_carrera.js
+//   node tests/content_test.js
 //
 // content.js espera un navegador; aqui se carga en un contexto con lo minimo
 // de `chrome`, `document` y compania para poder llamar a sus funciones.
@@ -76,6 +78,15 @@ vm.runInContext(fs.readFileSync(fuente, "utf8"), ctx, { filename: "content.js" }
   assert.strictEqual(vm.runInContext("track", ctx), null, "engancho el audio del VOD anterior");
   assert.strictEqual(vm.runInContext("audio", ctx), null, "creo un <audio> para el VOD anterior");
   assert.deepStrictEqual(pedidos, ["111", "222"], "el VOD nuevo no se pidio en el acto");
+
+  // Trozo 1 cerrado "a las 1060 s" (hora de cierre, pasada del audio real) y
+  // trozo 2 que empieza en el 1000: en el solape tiene que sonar el 2.
+  vm.runInContext(`trozos = [
+    { id: 1, inicio: 0, fin: 1060 },
+    { id: 2, inicio: 1000, fin: null },
+  ]`, ctx);
+  const cual = (t) => vm.runInContext(`(trozoPara(${t}) || {}).id`, ctx);
+  assert.deepStrictEqual([cual(500), cual(1030), cual(5000)], [1, 2, 2], "solape: eligio el trozo viejo");
   console.log("ok");
 })().catch((e) => {
   console.error(e);
