@@ -100,17 +100,21 @@ contrase~na del `.env`.
 
 ## 8. Apuntar la extension al servidor
 
-En el popup: **Configurar servidor**
+En las opciones de la extension (clic derecho en su icono > Opciones), en
+**Servidor remoto**:
 
 - Direccion: `https://tu-subdominio.duckdns.org`
 - Contrase~na: la del `.env`
+
+Al guardar pasa a usarlo. Desde el popup se cambia entre **Este PC** y
+**Servidor** con un clic, sin volver a escribir nada.
 
 ## 9. Llevarte lo que ya tienes (opcional)
 
 Para no perder las grabaciones y los canales del PC:
 
 ```powershell
-scp -i C:\ruta\a\tu-clave.key -r "C:\ruta\a\TwitchAudioVault\grabaciones" ubuntu@TU_IP:~/
+scp -i C:\ruta\a\tu-clave.key -r "C:\ruta\a\TwitchAudioVault\servidor\grabaciones" ubuntu@TU_IP:~/
 ```
 
 Y en el servidor:
@@ -119,6 +123,9 @@ Y en el servidor:
 sudo docker compose cp ~/grabaciones/. vault:/data/
 sudo docker compose restart vault
 ```
+
+Al arrancar, el servidor recoloca solo las rutas de las grabaciones copiadas
+(la base guarda las de tu PC), siempre que mantengas las carpetas por canal.
 
 ---
 

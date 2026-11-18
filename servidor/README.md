@@ -136,6 +136,7 @@ vault/
   config.py         configuración
 web/                panel de control
 despliegue/         guía e instalador para un servidor Linux
+tests/              py tests/test_audio.py (sin pytest; usa una carpeta temporal)
 ```
 
 ## Aviso

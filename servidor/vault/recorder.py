@@ -236,7 +236,10 @@ class Recording(threading.Thread):
     def _record(self) -> None:
         cfg = config.load()
         session = _session()
-        streams = session.streams(f"https://twitch.tv/{self.login}")
+        # El login actual, que es el que vale en la URL: si el canal se renombro,
+        # el guardado (self.login) ya no lleva a ningun sitio.
+        actual = self.stream_info.get("user_login") or self.login
+        streams = session.streams(f"https://twitch.tv/{actual}")
         if not streams:
             raise RuntimeError("el canal no ofrece streams (puede haber terminado)")
 

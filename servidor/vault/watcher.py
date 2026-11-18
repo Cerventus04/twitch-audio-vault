@@ -11,7 +11,7 @@ import json
 import logging
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from . import adts, config, db, mp4idx, recorder, twitch
 
@@ -71,6 +71,7 @@ class Watcher(threading.Thread):
         # Cuando se intento por ultima vez afinar el desfase de cada VOD, para
         # no insistir cada 30 s con uno que ya no existe.
         self._afinado_fallido: dict[str, float] = {}
+        self._reubicar()
         self._cerrar_huerfanas()
         while not self.stop_event.is_set():
             try:
@@ -132,6 +133,28 @@ class Watcher(threading.Thread):
         except Exception as exc:  # noqa: BLE001 - calentar es opcional
             log.debug("no se pudo calentar el indice de %s: %s", audio.name, exc)
 
+    @staticmethod
+    def _reubicar() -> None:
+        """Recoloca las grabaciones traidas de otra carpeta o de otra maquina.
+
+        La base guarda la ruta completa de cada fichero. Al copiar las
+        grabaciones al servidor (o moverlas de disco) esa ruta deja de existir
+        y todas salian como "ya no esta en disco", aunque el fichero estuviera
+        en su sitio: <carpeta de grabaciones>/<canal>/<nombre>.
+        """
+        base = config.audio_dir()
+        for row in db.query("SELECT id, path FROM recordings"):
+            if Path(row["path"]).exists():
+                continue
+            # PureWindowsPath entiende las dos barras: vale venga de donde venga.
+            viejo = PureWindowsPath(row["path"])
+            nuevo = base / viejo.parent.name / viejo.name
+            if nuevo.exists():
+                with db.tx() as conn:
+                    conn.execute(
+                        "UPDATE recordings SET path=? WHERE id=?", (str(nuevo), row["id"])
+                    )
+
     def _cerrar_huerfanas(self) -> None:
         """Cierra grabaciones que quedaron a medias al apagarse el programa.
 
@@ -179,7 +202,7 @@ class Watcher(threading.Thread):
             if not rec.is_alive():
                 del self.active[login]
 
-        channels = db.query("SELECT login FROM channels WHERE enabled=1")
+        channels = db.query("SELECT login, user_id FROM channels WHERE enabled=1")
         logins = [c["login"] for c in channels]
 
         # Si un canal deja de estar vigilado (borrado o pausado) mientras se
@@ -191,7 +214,7 @@ class Watcher(threading.Thread):
                 self.active[login].stop()
 
         if logins:
-            live = twitch.live_streams(logins)
+            live = twitch.live_streams(channels)
             for login in logins:
                 info = live.get(login)
                 if info and login not in self.active:

@@ -72,8 +72,10 @@ if [ ! -f .env ]; then
     aviso "        cp despliegue/env.ejemplo .env && nano .env"
     exit 1
 fi
-if grep -q CAMBIAME .env; then
-    aviso "    Te falta poner tu dominio en .env (pone CAMBIAME)."
+# Los valores de ejemplo de env.ejemplo. Sin -i no veia el "cambiame" del
+# dominio, y la contraseña de ejemplo es publica: esta en el repositorio.
+if grep -qiE 'cambiame|pon-aqui|tu-client' .env; then
+    aviso "    Quedan valores de ejemplo en .env: dominio, contraseña o credenciales."
     exit 1
 fi
 

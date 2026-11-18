@@ -15,7 +15,7 @@ Muchos streamers mandan a Twitch dos pistas de audio con la opción *VOD Track* 
 - Detecta el VOD abierto en Twitch y pide al servidor el audio grabado de ese directo.
 - Silencia el audio del VOD con un nodo de ganancia de **Web Audio** y reproduce encima el audio grabado, sincronizado.
 - Sigue los saltos, pausas y cambios de velocidad del reproductor de Twitch.
-- Popup y página de opciones para configurar la URL del servidor y un token opcional.
+- Popup para elegir de dónde sale el audio: el grabador de **este PC** o un **servidor** remoto. Los dos se recuerdan, así que cambiar es un clic.
 
 ## Lo que costó
 
@@ -33,7 +33,7 @@ Muchos streamers mandan a Twitch dos pistas de audio con la opción *VOD Track* 
 
 1. `chrome://extensions` → activar **Modo de desarrollador**.
 2. **Cargar descomprimida** → elegir la carpeta `extension`.
-3. En las opciones, indicar la URL del servidor (por defecto `http://localhost:8710`) y el token si lo tiene.
+3. En el popup, elegir **Este PC** (el grabador en `http://localhost:8710`) o **Servidor**. Para el remoto, su dirección y su contraseña se escriben en las opciones de la extensión.
 
 Requiere el servidor de grabación, que está en [`servidor/`](servidor).
 
@@ -58,6 +58,7 @@ extension/
   manifest.json   Manifest V3
   content.js      integración con el reproductor de Twitch y sincronización
   background.js   service worker: peticiones al servidor
+  ajustes.js      qué servidor se usa: este PC o el remoto
   puente.js       conecta la extensión con la web del servidor
   popup.*         estado y controles rápidos
   opciones.*      configuración
@@ -67,6 +68,9 @@ servidor/
   vault/          grabador, API y lectura de los formatos de Twitch
   web/            panel de control
   despliegue/     guía e instalador para un servidor Linux
+  tests/          pruebas del servidor: py servidor/tests/test_audio.py
+
+tests/            prueba de la extensión: node tests/content_carrera.js
 ```
 
 ---

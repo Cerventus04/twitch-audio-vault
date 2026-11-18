@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vault import adts, db, server  # noqa: E402
+from vault import adts, db, server, twitch  # noqa: E402
 
 DATOS = bytes([0xFF]) + bytes(i % 251 for i in range(1, 1000))  # 1000 bytes, "AAC"
 
@@ -76,7 +76,60 @@ def main() -> None:
     assert (cfg["poll_seconds"], cfg["retention_days"]) == (45, 0), cfg
 
     indice_incremental()
+    directo_de_canal_renombrado()
+    grabaciones_traidas_de_otra_maquina()
     print("ok")
+
+
+def grabaciones_traidas_de_otra_maquina() -> None:
+    """Rutas guardadas en otro equipo se recolocan si el fichero esta en su sitio."""
+    from vault import watcher
+
+    (TMP / "canal").mkdir(exist_ok=True)
+    for nombre in ("de-windows.aac", "de-linux.aac"):
+        (TMP / "canal" / nombre).write_bytes(b"x")
+    rutas = {
+        r"C:\Users\Otro\grabaciones\canal\de-windows.aac": TMP / "canal" / "de-windows.aac",
+        "/data/canal/de-linux.aac": TMP / "canal" / "de-linux.aac",
+        r"C:\perdida\canal\no-existe.aac": None,  # sin fichero: se deja como estaba
+    }
+    ids = {}
+    for vieja in rutas:
+        with db.tx() as conn:
+            ids[vieja] = conn.execute(
+                "INSERT INTO recordings (login, capture_start, path, status) "
+                "VALUES ('canal', '2026-01-01T00:00:00+00:00', ?, 'done')",
+                (vieja,),
+            ).lastrowid
+    watcher.Watcher._reubicar()
+    for vieja, esperada in rutas.items():
+        ahora = db.one("SELECT path FROM recordings WHERE id=?", (ids[vieja],))["path"]
+        assert ahora == str(esperada or vieja), (vieja, ahora)
+
+
+def directo_de_canal_renombrado() -> None:
+    """Un canal que cambia de nombre se sigue encontrando por su user_id."""
+    pedido = []
+
+    def falso(path, params):
+        pedido.extend(params)
+        return {"data": [
+            {"type": "live", "user_id": "42", "user_login": "nuevonombre"},
+            {"type": "live", "user_id": "7", "user_login": "sinid"},
+        ]}
+
+    real, twitch._get = twitch._get, falso
+    try:
+        live = twitch.live_streams([
+            {"login": "viejonombre", "user_id": "42"},
+            {"login": "sinid", "user_id": None},  # fila antigua sin user_id
+            {"login": "apagado", "user_id": "99"},
+        ])
+    finally:
+        twitch._get = real
+    assert ("user_id", "42") in pedido and ("user_login", "sinid") in pedido, pedido
+    assert set(live) == {"viejonombre", "sinid"}, live
+    assert live["viejonombre"]["user_login"] == "nuevonombre"
 
 
 def indice_incremental() -> None:

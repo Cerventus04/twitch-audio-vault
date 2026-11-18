@@ -87,15 +87,26 @@ def users(logins: list[str]) -> list[dict]:
     return out
 
 
-def live_streams(logins: list[str]) -> dict[str, dict]:
-    """Devuelve {login: stream} solo para los que estan en directo ahora."""
+def live_streams(canales: list[dict]) -> dict[str, dict]:
+    """{login guardado: stream} de los canales que estan en directo ahora.
+
+    Se busca por `user_id`, que no cambia aunque el streamer se renombre: por
+    login, un cambio de nombre dejaba de encontrar sus directos y no se volvia
+    a grabar nada, sin ningun error.
+    """
     result: dict[str, dict] = {}
-    for i in range(0, len(logins), 100):
-        chunk = logins[i : i + 100]
-        data = _get("/streams", [("user_login", l) for l in chunk]).get("data", [])
-        for s in data:
-            if s.get("type") == "live":
-                result[s["user_login"].lower()] = s
+    for i in range(0, len(canales), 100):
+        trozo = canales[i : i + 100]
+        params = [
+            ("user_id", c["user_id"]) if c.get("user_id") else ("user_login", c["login"])
+            for c in trozo
+        ]
+        for s in _get("/streams", params).get("data", []):
+            if s.get("type") != "live":
+                continue
+            for c in trozo:
+                if s["user_id"] == c.get("user_id") or s["user_login"].lower() == c["login"]:
+                    result[c["login"]] = s
     return result
 
 
