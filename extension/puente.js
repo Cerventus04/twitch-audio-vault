@@ -57,6 +57,11 @@ async function arrancar() {
     try {
       url = new URL(serverUrl);
     } catch {
+      url = null;
+    }
+    // "localhost:8710" sin http:// tambien es una URL (protocolo "localhost:"):
+    // se guardaba como remoto y la extension dejaba de encontrar el servidor.
+    if (!url || !/^https?:$/.test(url.protocol)) {
       aviso("Escribe la direccion entera, con http:// o https:// delante", true);
       return;
     }

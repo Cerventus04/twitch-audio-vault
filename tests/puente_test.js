@@ -76,6 +76,9 @@ async function pedirPermiso(yaConcedido) {
   r = await guardarDesdeElPanel("https://vault.ejemplo.ts.net", true);
   assert.match(r.aviso, /falta dar permiso/, "el aviso del permiso se perdio");
 
+  r = await guardarDesdeElPanel("localhost:8710", false);
+  assert.strictEqual(r.guardado, undefined, "guardo una direccion sin http:// como remoto");
+
   r = await guardarDesdeElPanel("http://localhost:8710", false);
   assert.strictEqual(r.guardado.modo, "local");
   assert.strictEqual(r.pedidos.length, 0, "pidio permiso para este PC");
