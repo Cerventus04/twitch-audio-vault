@@ -108,6 +108,7 @@ def main() -> None:
     afinado_del_desfase()
     directo_que_no_abre()
     directo_de_canal_renombrado()
+    contraseña_con_ñ()
     grabaciones_traidas_de_otra_maquina()
     retencion_con_un_fichero_en_uso()  # la ultima: borra lo viejo de las demas
     print("ok")
@@ -386,6 +387,20 @@ def directo_que_no_abre() -> None:
         assert cuantas() == 1, cuantas()
     finally:
         recorder._session = real
+
+
+def contraseña_con_ñ() -> None:
+    """Una contraseña con ñ o acentos no deja a todo el mundo fuera."""
+    c = TestClient(server.app, raise_server_exceptions=False)
+    entrar = lambda t: c.post("/api/auth", json={"token": t}).status_code
+    os.environ["VAULT_AUTH_TOKEN"] = "contraseña"
+    try:
+        assert (entrar("contraseña"), entrar("contrasena"), entrar("mala")) == (200, 401, 401)
+        # Y una buena en ASCII no se rompe porque alguien mande una con ñ.
+        os.environ["VAULT_AUTH_TOKEN"] = "clave123"
+        assert (entrar("clave123"), entrar("añil")) == (200, 401)
+    finally:
+        del os.environ["VAULT_AUTH_TOKEN"]
 
 
 def directo_de_canal_renombrado() -> None:

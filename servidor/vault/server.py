@@ -5,7 +5,6 @@ import datetime as dt
 import logging
 import os
 import re
-import secrets
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -281,7 +280,7 @@ def auth_login(payload: dict = Body(...)) -> dict:
     esperado = auth.token()
     if not esperado:
         return {"ok": True, "required": False}
-    if secrets.compare_digest(str(payload.get("token", "")), esperado):
+    if auth.coincide(str(payload.get("token", "")), esperado):
         return {"ok": True, "required": True}
     raise HTTPException(401, "Contraseña incorrecta")
 

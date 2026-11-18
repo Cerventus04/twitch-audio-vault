@@ -66,8 +66,17 @@ def valido(request: Request) -> bool:
     dado = _presentado(request)
     if not dado:
         return False
-    # compare_digest evita filtrar la contraseña por el tiempo de respuesta.
-    return secrets.compare_digest(dado, esperado)
+    return coincide(dado, esperado)
+
+
+def coincide(dado: str, esperado: str) -> bool:
+    """Compara contraseñas sin filtrar nada por el tiempo de respuesta.
+
+    En bytes y no en texto: compare_digest lanza TypeError con texto no ASCII,
+    y una contraseña con ñ o acentos dejaba a todo el mundo fuera (500 en
+    cada intento, tambien con la buena).
+    """
+    return secrets.compare_digest(dado.encode("utf-8"), esperado.encode("utf-8"))
 
 
 async def middleware(request: Request, call_next):
