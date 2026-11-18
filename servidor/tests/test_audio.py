@@ -109,6 +109,7 @@ def main() -> None:
     directo_que_no_abre()
     directo_de_canal_renombrado()
     contraseña_con_ñ()
+    titulo_con_emojis()
     grabaciones_traidas_de_otra_maquina()
     retencion_con_un_fichero_en_uso()  # la ultima: borra lo viejo de las demas
     print("ok")
@@ -387,6 +388,21 @@ def directo_que_no_abre() -> None:
         assert cuantas() == 1, cuantas()
     finally:
         recorder._session = real
+
+
+def titulo_con_emojis() -> None:
+    """La ruta de la grabacion cabe en el limite de Windows (260 unidades
+    UTF-16) aunque el titulo venga lleno de emojis, que ocupan 2 cada uno."""
+    import datetime as dt
+
+    from vault import recorder
+
+    ahora = dt.datetime.now(dt.timezone.utc)
+    for titulo in ("🔥" * 140, "hola 🔥 " * 40, "a" * 300):
+        ruta = str(recorder.target_path("canal", ahora, titulo))
+        assert len(ruta.encode("utf-16-le")) // 2 <= 260, (titulo[:10], len(ruta))
+    # El recorte no se come el titulo entero: algo reconocible queda.
+    assert "hola 🔥" in str(recorder.target_path("canal", ahora, "hola 🔥 " * 40))
 
 
 def contraseña_con_ñ() -> None:

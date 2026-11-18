@@ -157,6 +157,16 @@ def constante_del_vod(vod_id: str) -> float:
     return marca - elegido[0]
 
 
+def _ancho(texto: str) -> int:
+    """Longitud como la cuenta Windows (UTF-16): un emoji ocupa 2, no 1.
+
+    Contando caracteres de Python, un titulo lleno de emojis dejaba la ruta en
+    345 de un limite de 260, y en un Windows sin rutas largas activadas el
+    fichero no se podia crear: ese directo no se grababa.
+    """
+    return len(texto.encode("utf-16-le")) // 2
+
+
 def limpiar_titulo(titulo: str, tope: int) -> str:
     """Convierte el titulo del directo en algo que Windows acepte.
 
@@ -171,10 +181,12 @@ def limpiar_titulo(titulo: str, tope: int) -> str:
         return ""
     if t.split()[0].upper() in RESERVADOS and len(t.split()) == 1:
         return ""
-    if len(t) > tope:
-        corte = t[:tope]
+    if _ancho(t) > tope:
+        corte = t
+        while _ancho(corte) > tope:
+            corte = corte[:-1]
         espacio = corte.rfind(" ")
-        t = (corte[:espacio] if espacio > tope * 0.6 else corte).strip(" .")
+        t = (corte[:espacio] if espacio > len(corte) * 0.6 else corte).strip(" .")
     return t
 
 
@@ -188,7 +200,7 @@ def target_path(login: str, started: dt.datetime, titulo: str = "") -> Path:
     stamp = started.astimezone(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
 
     # Lo que sobra hasta el limite de ruta se reparte al titulo.
-    margen = MAX_RUTA - len(str(carpeta)) - len(stamp) - len(" - ") - len(".aac") - 6
+    margen = MAX_RUTA - _ancho(str(carpeta)) - len(stamp) - len(" - ") - len(".aac") - 6
     titulo_limpio = limpiar_titulo(titulo, margen) if margen >= 12 else ""
 
     base = f"{stamp} - {titulo_limpio}" if titulo_limpio else stamp
