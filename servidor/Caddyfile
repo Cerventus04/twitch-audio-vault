@@ -26,5 +26,14 @@
 			roll_size 10mb
 			roll_keep 3
 		}
+		# La contraseña viaja en `?t=` (un <audio> no puede mandar cabeceras)
+		# y en X-Auth-Token, que Caddy no oculta por su cuenta como hace con
+		# Authorization. Sin esto quedaba escrita en claro en el registro.
+		format filter {
+			request>uri query {
+				replace t REDACTED
+			}
+			request>headers>X-Auth-Token replace REDACTED
+		}
 	}
 }
