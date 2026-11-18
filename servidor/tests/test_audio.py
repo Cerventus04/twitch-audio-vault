@@ -80,6 +80,7 @@ def main() -> None:
     indice_incremental()
     indice_mp4()
     demultiplexado_ts()
+    afinado_del_desfase()
     directo_de_canal_renombrado()
     grabaciones_traidas_de_otra_maquina()
     print("ok")
@@ -217,6 +218,40 @@ def demultiplexado_ts() -> None:
     salida += d.flush()
     assert bytes(salida) == bytes(esperado), (len(salida), len(esperado))
     assert d.primer_pts == 111105000 / 90000, d.primer_pts
+
+
+def afinado_del_desfase() -> None:
+    """El afinado por PTS corrige un desfase aproximado, pero no lo pisa con uno
+    disparatado (el PTS da la vuelta en directos de mas de ~26,5 h)."""
+    import datetime as dt
+
+    from vault import recorder, watcher
+
+    ahora = dt.datetime.now(dt.timezone.utc).isoformat()
+    ids = {}
+    for vod in ("cuadra", "vuelta"):
+        with db.tx() as conn:
+            ids[vod] = conn.execute(
+                "INSERT INTO recordings (login, capture_start, path, status, vod_id, "
+                "first_pts, vod_offset, offset_metodo) "
+                "VALUES ('x', ?, 'x.aac', 'done', ?, 5000, 100, 'reloj')",
+                (ahora, vod),
+            ).lastrowid
+    # Constante del VOD: en uno deja el desfase en 102 s; en el otro, en 100000.
+    real = recorder.constante_del_vod
+    recorder.constante_del_vod = lambda vod: {"cuadra": 4898.0, "vuelta": -95000.0}[vod]
+    try:
+        w = watcher.Watcher()
+        w._afinado_fallido = {}
+        w._afinar_desfases()
+    finally:
+        recorder.constante_del_vod = real
+
+    fila = lambda vod: db.one(
+        "SELECT vod_offset, offset_metodo FROM recordings WHERE id=?", (ids[vod],)
+    )
+    assert fila("cuadra") == {"vod_offset": 102.0, "offset_metodo": "pts"}, fila("cuadra")
+    assert fila("vuelta") == {"vod_offset": 100.0, "offset_metodo": "reloj"}, fila("vuelta")
 
 
 def directo_de_canal_renombrado() -> None:

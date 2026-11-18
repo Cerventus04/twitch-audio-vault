@@ -320,9 +320,13 @@ class Watcher(threading.Thread):
                 continue
 
             offset = row["first_pts"] - k
-            if offset < 0:
-                continue
             viejo = row["vod_offset"] or 0.0
+            # El mismo control que en _calcular_desfase: si el PTS dio la vuelta
+            # (directos de mas de ~26,5 h) la resta sale disparatada, y aqui se
+            # colaba sobre el desfase aproximado, que era el bueno.
+            if offset < 0 or (row["vod_offset"] is not None and abs(offset - viejo) > 600):
+                self._afinado_fallido[vod] = ahora
+                continue
             with db.tx() as conn:
                 conn.execute(
                     "UPDATE recordings SET vod_offset=?, offset_metodo='pts' "
