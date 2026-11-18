@@ -15,6 +15,7 @@ Cada trama ADTS lleva 1024 muestras, asi que su duracion es 1024/frecuencia.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 # Cada cuantos segundos se apunta una marca. Mas fino ocupa mas y no aporta:
@@ -35,6 +36,27 @@ FRECUENCIAS = [
     96000, 88200, 64000, 48000, 44100, 32000,
     24000, 22050, 16000, 12000, 11025, 8000,
 ]
+
+
+# Un cerrojo por fichero. Mientras se graba, el vigilante y las peticiones de
+# /audio construyen y reescriben el mismo indice a la vez: uno leia el de otro
+# a medio escribir, lo daba por roto y lo rehacia desde cero, que son segundos
+# de espera en mitad de un relevo (medido: 360 de 1200 consultas con 4 hilos).
+# Asi lo hace uno y los demas leen el resultado.
+_cerrojos: dict[str, threading.Lock] = {}
+_cerrojos_cerrojo = threading.Lock()
+
+
+def cerrojo(audio: Path) -> threading.Lock:
+    with _cerrojos_cerrojo:
+        return _cerrojos.setdefault(str(audio), threading.Lock())
+
+
+def guardar_indice(cache: Path, datos: dict) -> None:
+    try:
+        cache.write_text(json.dumps(datos), encoding="utf-8")
+    except OSError:
+        pass  # sin cache funciona igual, solo mas lento
 
 
 def _leer_indice_cacheado(audio: Path, cache: Path) -> dict | None:
@@ -157,15 +179,13 @@ def indice(audio: Path) -> dict:
     recorrido y se escanean unicamente los bytes nuevos.
     """
     cache = audio.with_suffix(audio.suffix + ".idx")
-    datos = _reanudable(audio, _leer_indice_cacheado(audio, cache))
-    if datos is not None and datos.get("bytes") == audio.stat().st_size:
-        return datos  # nada ha cambiado
-    datos = construir(audio, previo=datos)  # sin previo, desde cero
-    try:
-        cache.write_text(json.dumps(datos), encoding="utf-8")
-    except OSError:
-        pass  # sin cache funciona igual, solo mas lento
-    return datos
+    with cerrojo(audio):
+        datos = _reanudable(audio, _leer_indice_cacheado(audio, cache))
+        if datos is not None and datos.get("bytes") == audio.stat().st_size:
+            return datos  # nada ha cambiado
+        datos = construir(audio, previo=datos)  # sin previo, desde cero
+        guardar_indice(cache, datos)
+        return datos
 
 
 def tramo(audio: Path, segundo: float, dura: float = 0) -> tuple[int, int, float]:

@@ -85,6 +85,7 @@ def main() -> None:
     assert guardado.get("audio_dir") != str(TMP / "otra"), guardado
 
     indice_incremental()
+    indice_con_varios_hilos()
     indice_mp4()
     demultiplexado_ts()
     afinado_del_desfase()
@@ -139,6 +140,50 @@ def grabaciones_traidas_de_otra_maquina() -> None:
     for vieja, esperada in rutas.items():
         ahora = db.one("SELECT path FROM recordings WHERE id=?", (ids[vieja],))["path"]
         assert ahora == str(esperada or vieja), (vieja, ahora)
+
+
+def indice_con_varios_hilos() -> None:
+    """Mientras se graba, varios hilos consultan el indice a la vez (el
+    vigilante y las peticiones de /audio): ninguno debe dar el de otro por roto
+    y rehacerlo desde cero."""
+    import threading
+
+    trama = bytes([0xFF, 0xF1, 0x4C, 0x80, 100 >> 3, ((100 & 7) << 5) | 0x1F, 0xFC]) + bytes(93)
+    vivo = TMP / "vivo.aac"
+    vivo.write_bytes(trama * 20000)
+    adts.indice(vivo)
+    desde_cero = []
+    real = adts.construir
+
+    def contar(audio, granularidad=adts.GRANULARIDAD, previo=None):
+        if previo is None:
+            desde_cero.append(1)
+        return real(audio, granularidad, previo)
+
+    parar = threading.Event()
+
+    def grabador():
+        while not parar.is_set():
+            with open(vivo, "ab") as fh:
+                fh.write(trama * 20)
+
+    adts.construir = contar
+    try:
+        g = threading.Thread(target=grabador)
+        g.start()
+        lectores = [
+            threading.Thread(target=lambda: [adts.indice(vivo) for _ in range(150)])
+            for _ in range(4)
+        ]
+        for h in lectores:
+            h.start()
+        for h in lectores:
+            h.join()
+        parar.set()
+        g.join()
+    finally:
+        adts.construir = real
+    assert not desde_cero, f"{len(desde_cero)} indices rehechos desde cero"
 
 
 def indice_mp4() -> None:

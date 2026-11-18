@@ -22,7 +22,7 @@ import struct
 from pathlib import Path
 
 from . import mp4
-from .adts import FueraDelFichero
+from .adts import FueraDelFichero, cerrojo, guardar_indice
 
 GRANULARIDAD = 10
 
@@ -195,13 +195,6 @@ def _reanudable(audio: Path, datos: dict | None) -> dict | None:
     return datos
 
 
-def _guardar(cache: Path, datos: dict) -> None:
-    try:
-        cache.write_text(json.dumps(datos), encoding="utf-8")
-    except OSError:
-        pass  # sin cache funciona igual, solo mas lento
-
-
 def indice(audio: Path) -> dict:
     """Indice del fichero, construyendolo la primera vez y guardandolo al lado.
 
@@ -212,12 +205,13 @@ def indice(audio: Path) -> dict:
     el final, ahora se conserva lo recorrido y se leen solo los bytes nuevos.
     """
     cache = audio.with_suffix(audio.suffix + ".m4idx")
-    datos = _reanudable(audio, _cacheado(audio, cache))
-    if datos is not None and datos.get("bytes") == audio.stat().st_size:
-        return datos  # nada ha cambiado
-    datos = construir(audio, previo=datos)  # sin previo, desde cero
-    _guardar(cache, datos)
-    return datos
+    with cerrojo(audio):  # ver adts.cerrojo
+        datos = _reanudable(audio, _cacheado(audio, cache))
+        if datos is not None and datos.get("bytes") == audio.stat().st_size:
+            return datos  # nada ha cambiado
+        datos = construir(audio, previo=datos)  # sin previo, desde cero
+        guardar_indice(cache, datos)
+        return datos
 
 
 def corte(
