@@ -124,7 +124,11 @@ function confirmar(titulo, texto, textoBoton = "Confirmar") {
     const fuera = (e) => e.target === fondo && cerrar(false);
     const tecla = (e) => {
       if (e.key === "Escape") cerrar(false);
-      if (e.key === "Enter") cerrar(true);
+      // Con el foco en un boton decide ese boton. Antes Intro confirmaba
+      // siempre, y llega antes que el clic: Intro sobre "Cancelar" borraba.
+      if (e.key === "Enter" && !(document.activeElement instanceof HTMLButtonElement)) {
+        cerrar(true);
+      }
     };
     $("#modal-ok").addEventListener("click", si);
     $("#modal-cancel").addEventListener("click", no);
