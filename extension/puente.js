@@ -64,13 +64,14 @@ async function arrancar() {
     // Para un servidor remoto hace falta permiso sobre ESE dominio, y solo
     // sobre ese. Hay que pedirlo desde una pagina de la extension, asi que se
     // manda al service worker, que abre la de opciones.
+    // Lo mira el service worker: un content script no tiene chrome.permissions
+    // (aqui revento siempre, y una direccion https no llegaba a guardarse).
+    let falta = false;
     if (url.protocol === "https:") {
-      const origen = `${url.origin}/*`;
-      const tiene = await chrome.permissions.contains({ origins: [origen] });
-      if (!tiene) {
-        chrome.runtime.sendMessage({ type: "pedirPermiso", origen });
-        aviso("Falta dar permiso para ese dominio: se abre la ventana", true);
-      }
+      const r = await new Promise((res) =>
+        chrome.runtime.sendMessage({ type: "pedirPermiso", origen: `${url.origin}/*` }, res)
+      );
+      falta = Boolean(r && r.abierta);
     }
 
     // La de este PC no se guarda como remoto: solo se elige ese modo, y la
@@ -82,7 +83,9 @@ async function arrancar() {
         modo: "remoto", remotoUrl: serverUrl, remotoToken: $("ext-token").value,
       });
     }
-    aviso("Guardado");
+    // Un solo aviso: antes el de "falta permiso" se pisaba al instante con este.
+    if (falta) aviso("Guardado, pero falta dar permiso para ese dominio: se abre la ventana", true);
+    else aviso("Guardado");
   });
 }
 

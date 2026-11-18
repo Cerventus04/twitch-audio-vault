@@ -51,10 +51,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
       } else if (msg.type === "pedirPermiso") {
         // El permiso sobre un dominio solo lo puede pedir una pagina de la
         // extension, asi que se apunta cual hace falta y se abre la de
-        // opciones, que es donde esta el boton.
-        await chrome.storage.local.set({ permisoPendiente: msg.origen });
-        chrome.runtime.openOptionsPage();
-        respond({ ok: true });
+        // opciones, que es donde esta el boton. Si ya se tiene, nada.
+        if (await chrome.permissions.contains({ origins: [msg.origen] })) {
+          respond({ ok: true, abierta: false });
+        } else {
+          await chrome.storage.local.set({ permisoPendiente: msg.origen });
+          chrome.runtime.openOptionsPage();
+          respond({ ok: true, abierta: true });
+        }
       } else if (msg.type === "canal") {
         const data = await call(
           `/api/canal?login=${encodeURIComponent(msg.login)}`
