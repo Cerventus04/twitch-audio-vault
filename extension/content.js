@@ -314,7 +314,10 @@ const loginDeCanal = () => {
  */
 async function duracionDelReproductor(el, esperaMs = 15000) {
   const limite = Date.now() + esperaMs;
-  while (Date.now() < limite) {
+  // Se deja de medir al navegar: en un canal en directo la espera se agota
+  // entera, y mientras dura nadie mas puede arrancar (cerrojo `ocupado`).
+  const sesion = generacion;
+  while (Date.now() < limite && generacion === sesion) {
     const d = el.duration;
     if (Number.isFinite(d) && d > 60) {
       // Un directo crece un segundo por segundo, asi que con 700 ms ya se
@@ -356,7 +359,8 @@ function videoPrincipal() {
 
 async function findVideoElement(timeoutMs = 20000) {
   const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  const sesion = generacion; // ver duracionDelReproductor
+  while (Date.now() < deadline && generacion === sesion) {
     const el = videoPrincipal();
     if (el) return el;
     await new Promise((r) => setTimeout(r, 150));

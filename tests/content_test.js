@@ -1,6 +1,8 @@
 // Pruebas de content.js:
 // - Cambiar de VOD mientras se espera al servidor no debe enganchar el audio
 //   del VOD anterior en la pagina nueva, y el nuevo debe pedirse en el acto.
+// - Saltar de un canal en directo a un VOD no espera a que se agote la medida
+//   de la duracion del reproductor.
 // - Si dos trozos de grabacion se solapan, manda el que empieza despues.
 //
 //   node tests/content_test.js
@@ -13,81 +15,110 @@ const path = require("path");
 const vm = require("vm");
 const assert = require("assert");
 
-let responder = null; // respuesta pendiente de la peticion "match"
-const pedidos = []; // VODs por los que se ha preguntado al servidor
+const fuente = fs.readFileSync(path.join(__dirname, "..", "extension", "content.js"), "utf8");
 const nada = () => {};
-// Elemento multimedia de mentira: lo justo para que la carga vieja, si no se
-// frena, llegue hasta el final y enganche.
-const medio = () => ({
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Elemento multimedia de mentira: lo justo para que una carga, si no se frena,
+// llegue hasta el final y enganche.
+const medio = (duration = NaN) => ({
   addEventListener: nada, removeEventListener: nada, removeAttribute: nada,
   pause: nada, load: nada, remove: nada, play: () => Promise.resolve(),
   getBoundingClientRect: () => ({ width: 1, height: 1 }),
   style: {}, paused: true, muted: false, volume: 1, currentTime: 0,
-  duration: NaN, playbackRate: 1, readyState: 0, isConnected: true,
+  duration, playbackRate: 1, readyState: 0, isConnected: true,
 });
-const video = medio();
-const ctx = vm.createContext({
-  console,
-  setTimeout,
-  clearTimeout,
-  setInterval: nada,
-  performance,
-  location: { href: "https://www.twitch.tv/videos/111", pathname: "/videos/111" },
-  navigator: {},
-  window: { addEventListener: nada },
-  document: {
-    hidden: false,
-    addEventListener: nada,
-    querySelectorAll: () => [video],
-    createElement: medio,
-    body: { appendChild: nada },
-  },
-  chrome: {
-    runtime: {
-      onMessage: { addListener: nada },
-      sendMessage: (msg, cb) => {
-        if (msg.type === "match") {
-          pedidos.push(msg.vod);
-          responder = cb;
-        } else cb({ ok: false });
+
+/** Carga content.js en `ruta`. `video` es el reproductor que ve la pagina. */
+function cargar(ruta, { video = medio(), canal = { videos: [] } } = {}) {
+  const pedidos = []; // peticiones "match" al servidor: VOD pedido
+  const pendientes = []; // sus respuestas, sin contestar
+  const ctx = vm.createContext({
+    console, setTimeout, clearTimeout, setInterval: nada, performance,
+    location: { href: "https://www.twitch.tv" + ruta, pathname: ruta },
+    navigator: {},
+    window: { addEventListener: nada },
+    document: {
+      hidden: false,
+      addEventListener: nada,
+      querySelectorAll: () => [video],
+      createElement: () => medio(),
+      body: { appendChild: nada },
+    },
+    chrome: {
+      runtime: {
+        onMessage: { addListener: nada },
+        sendMessage: (msg, cb) => {
+          if (msg.type === "match") {
+            pedidos.push(msg.vod);
+            pendientes.push(cb);
+          } else if (msg.type === "canal") {
+            cb({ ok: true, data: canal });
+          } else cb({ ok: false });
+        },
+      },
+      storage: {
+        onChanged: { addListener: nada },
+        sync: { get: (_d, cb) => cb({ volumen: 1 }), set: nada },
       },
     },
-    storage: {
-      onChanged: { addListener: nada },
-      sync: { get: (_d, cb) => cb({ volumen: 1 }), set: nada },
-    },
-  },
-});
-
-const fuente = path.join(__dirname, "..", "extension", "content.js");
-vm.runInContext(fs.readFileSync(fuente, "utf8"), ctx, { filename: "content.js" });
-
-(async () => {
-  // Al cargarse, content.js ya ha entrado en el VOD 111 y espera al servidor.
-  assert.deepStrictEqual(pedidos, ["111"]);
-  // El usuario se va al 222 antes de que conteste.
-  Object.assign(ctx.location, { href: "https://www.twitch.tv/videos/222", pathname: "/videos/222" });
-  vm.runInContext("onRouteChange()", ctx);
-  responder({
-    ok: true,
-    base: "http://localhost:8710",
-    data: { found: true, segments: [{ id: 1, inicio: 0, fin: null, audio_url: "/audio/1" }] },
   });
-  await new Promise((r) => setTimeout(r, 50));
+  vm.runInContext(fuente, ctx, { filename: "content.js" });
+  const ir = (nueva) => {
+    Object.assign(ctx.location, { href: "https://www.twitch.tv" + nueva, pathname: nueva });
+    vm.runInContext("onRouteChange()", ctx);
+  };
+  return { ctx, pedidos, pendientes, ir, val: (expr) => vm.runInContext(expr, ctx) };
+}
 
-  assert.strictEqual(vm.runInContext("track", ctx), null, "engancho el audio del VOD anterior");
-  assert.strictEqual(vm.runInContext("audio", ctx), null, "creo un <audio> para el VOD anterior");
-  assert.deepStrictEqual(pedidos, ["111", "222"], "el VOD nuevo no se pidio en el acto");
+const encontrado = {
+  ok: true,
+  base: "http://localhost:8710",
+  data: { found: true, segments: [{ id: 1, inicio: 0, fin: null, audio_url: "/audio/1" }] },
+};
 
+async function cambioDeVod() {
+  // Al cargarse, content.js ya ha entrado en el VOD 111 y espera al servidor.
+  const p = cargar("/videos/111");
+  assert.deepStrictEqual(p.pedidos, ["111"]);
+  // El usuario se va al 222 antes de que conteste.
+  p.ir("/videos/222");
+  p.pendientes[0](encontrado);
+  await espera(50);
+
+  assert.strictEqual(p.val("track"), null, "engancho el audio del VOD anterior");
+  assert.strictEqual(p.val("audio"), null, "creo un <audio> para el VOD anterior");
+  assert.deepStrictEqual(p.pedidos, ["111", "222"], "el VOD nuevo no se pidio en el acto");
+}
+
+async function deCanalEnDirectoAVod() {
+  // Portada de un canal en directo: la duracion es infinita, asi que la medida
+  // no la da nunca por buena y agotaria sus 15 s.
+  const p = cargar("/canal", {
+    video: medio(Infinity),
+    canal: { videos: [{ vod: "999", duracion: 3600 }] },
+  });
+  await espera(100);
+  p.ir("/videos/222");
+  await espera(400);
+  assert.deepStrictEqual(p.pedidos, ["222"], "el VOD espero a que acabara la medida del canal");
+}
+
+function solapeDeTrozos() {
   // Trozo 1 cerrado "a las 1060 s" (hora de cierre, pasada del audio real) y
   // trozo 2 que empieza en el 1000: en el solape tiene que sonar el 2.
-  vm.runInContext(`trozos = [
-    { id: 1, inicio: 0, fin: 1060 },
-    { id: 2, inicio: 1000, fin: null },
-  ]`, ctx);
-  const cual = (t) => vm.runInContext(`(trozoPara(${t}) || {}).id`, ctx);
+  const p = cargar("/");
+  p.val(`trozos = [{ id: 1, inicio: 0, fin: 1060 }, { id: 2, inicio: 1000, fin: null }]`);
+  const cual = (t) => p.val(`(trozoPara(${t}) || {}).id`);
   assert.deepStrictEqual([cual(500), cual(1030), cual(5000)], [1, 2, 2], "solape: eligio el trozo viejo");
+}
+
+(async () => {
+  await cambioDeVod();
+  await deCanalEnDirectoAVod();
+  solapeDeTrozos();
   console.log("ok");
+  process.exit(0); // las esperas de mentira que queden no deben retener el proceso
 })().catch((e) => {
   console.error(e);
   process.exit(1);
