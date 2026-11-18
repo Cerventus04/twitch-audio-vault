@@ -57,8 +57,14 @@ async function elegirModo(modo) {
 $("modo-local").addEventListener("click", () => elegirModo("local"));
 $("modo-remoto").addEventListener("click", () => elegirModo("remoto"));
 
+// Cambiando de modo deprisa, la respuesta lenta del servidor anterior (uno
+// caido tarda en fallar) llegaba despues y pisaba la buena.
+let comprobacion = 0;
+
 async function comprobarServidor() {
+  const mia = ++comprobacion;
   const r = await alFondo({ type: "status" });
+  if (mia !== comprobacion) return;
   if (r.ok) {
     const s = r.data;
     $("dot").className = "dot ok";
