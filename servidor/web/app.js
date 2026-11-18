@@ -582,7 +582,6 @@ $("#btn-save-config").addEventListener("click", async () => {
       body: JSON.stringify({
         client_id: $("#cfg-client-id").value.trim(),
         client_secret: $("#cfg-client-secret").value.trim(),
-        audio_dir: $("#cfg-audio-dir").value.trim(),
         poll_seconds: Number($("#cfg-poll").value),
         retention_days: Number($("#cfg-retention").value),
       }),

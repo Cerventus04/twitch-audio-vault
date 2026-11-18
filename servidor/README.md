@@ -51,7 +51,9 @@ Todo vive en `config.json`. Cualquier clave se puede sobrescribir con una variab
 
 ### El token y el puerto
 
-`host`, `port` y `auth_token` **solo se tocan en el fichero o por variable de entorno**, nunca desde el panel: así nadie puede desactivar la contraseña desde la propia interfaz.
+`host`, `port`, `auth_token` y `audio_dir` **solo se tocan en el fichero o por variable de entorno**, nunca desde el panel: así nadie puede desactivar la contraseña desde la propia interfaz.
+
+`audio_dir` lleva dentro la base de datos (canales y biblioteca). Para cambiarla: cierra el programa, mueve la carpeta entera a su sitio nuevo, cambia `audio_dir` y arranca. Las rutas de las grabaciones se recolocan solas.
 
 Con `host` en `127.0.0.1` el token es opcional, porque solo se puede llegar desde el mismo equipo. **En cuanto se abre a la red es obligatorio**: el programa se niega a arrancar sin él.
 

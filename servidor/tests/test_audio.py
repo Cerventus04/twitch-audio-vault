@@ -77,6 +77,13 @@ def main() -> None:
     cfg = c.get("/api/config").json()
     assert (cfg["poll_seconds"], cfg["retention_days"]) == (45, 0), cfg
 
+    # La carpeta no se cambia desde el panel: la base vive dentro, y cambiarla
+    # en marcha partia el servidor en dos bases.
+    assert c.post("/api/config", json={"audio_dir": str(TMP / "otra")}).status_code == 200
+    import json
+    guardado = json.loads((TMP / "config.json").read_text(encoding="utf-8"))
+    assert guardado.get("audio_dir") != str(TMP / "otra"), guardado
+
     indice_incremental()
     indice_mp4()
     demultiplexado_ts()

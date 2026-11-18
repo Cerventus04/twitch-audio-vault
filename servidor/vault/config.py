@@ -34,8 +34,10 @@ DEFAULTS = {
 
 # Estos ajustes son de despliegue: se tocan en el fichero o por variable de
 # entorno, no desde el panel, para que nadie pueda desactivar la contraseña
-# desde la propia interfaz.
-SOLO_FICHERO = {"host", "auth_token", "port"}
+# desde la propia interfaz. `audio_dir` tambien: la base de datos vive dentro,
+# y cambiarla en marcha partia el servidor en dos (los hilos ya abiertos
+# seguian con la vieja; los nuevos creaban otra vacia, sin canales).
+SOLO_FICHERO = {"host", "auth_token", "port", "audio_dir"}
 
 
 def load() -> dict:
