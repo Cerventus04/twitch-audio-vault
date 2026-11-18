@@ -169,6 +169,13 @@ def indice_mp4() -> None:
     # Despues de la discontinuidad toca la segunda inicializacion.
     cab, principio, fin, real = mp4idx.corte(entero, 41, 0)
     assert (cab, principio, fin) == (inits[1], inicio_seg[20], len(datos)), (cab, principio, fin)
+    # Marcas hasta los 50 s: pedir desde el 60 es pedir algo aun no grabado.
+    try:
+        mp4idx.corte(entero, 60, 25)
+    except adts.FueraDelFichero:
+        pass
+    else:
+        raise AssertionError("desde=60 deberia estar fuera del fichero")
 
 
 def demultiplexado_ts() -> None:
@@ -302,6 +309,25 @@ def indice_incremental() -> None:
     # Pedir mas de lo que queda sirve hasta el final, no una ventana vacia.
     principio, fin, dura = adts.tramo(entero, 12, 300)
     assert (principio, fin) == (46900, 0) and abs(dura - 531 * 1024 / 48000) < 1e-9
+
+    # Un tramo que empieza despues de lo grabado es un error, no el ultimo tramo:
+    # servirlo hacia sonar audio ya escuchado en el sitio equivocado.
+    for segundo in (30, 60):
+        try:
+            adts.tramo(entero, segundo, 25)
+        except adts.FueraDelFichero:
+            pass
+        else:
+            raise AssertionError(f"desde={segundo} deberia estar fuera del fichero")
+    with db.tx() as conn:
+        rid = conn.execute(
+            "INSERT INTO recordings (login, capture_start, path, status) "
+            "VALUES ('x', '2026-01-01T00:00:00+00:00', ?, 'done')", (str(entero),),
+        ).lastrowid
+    c = TestClient(server.app)
+    assert c.get(f"/audio/{rid}?desde=30&dura=25").status_code == 416
+    r = c.get(f"/audio/{rid}?desde=20&dura=25")
+    assert r.status_code == 200 and r.content == todo[93800:], r.status_code
 
 
 if __name__ == "__main__":

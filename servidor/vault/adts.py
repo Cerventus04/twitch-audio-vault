@@ -21,6 +21,16 @@ from pathlib import Path
 # el navegador ya ajusta el resto por su cuenta.
 GRANULARIDAD = 10
 
+
+class FueraDelFichero(Exception):
+    """Se pidio un tramo que empieza despues de lo grabado.
+
+    Antes se recortaba a la ultima marca y se servia eso: el cliente creia
+    estar en el segundo pedido y sonaba audio anterior, ya escuchado. Y el
+    relevo, que reintenta cuando el tramo de un directo en curso aun no
+    existe, nunca veia el error que esperaba.
+    """
+
 FRECUENCIAS = [
     96000, 88200, 64000, 48000, 44100, 32000,
     24000, 22050, 16000, 12000, 11025, 8000,
@@ -174,7 +184,9 @@ def tramo(audio: Path, segundo: float, dura: float = 0) -> tuple[int, int, float
 
     tiempos = datos.get("tiempos") or []
     exactos = len(tiempos) == len(marcas)
-    k = min(max(0, int(segundo // g)), len(marcas) - 1)
+    k = max(0, int(segundo // g))
+    if k >= len(marcas):
+        raise FueraDelFichero(segundo)
     principio = int(marcas[k])
     inicio_real = tiempos[k] if exactos else k * g
 

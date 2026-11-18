@@ -22,6 +22,7 @@ import struct
 from pathlib import Path
 
 from . import mp4
+from .adts import FueraDelFichero
 
 GRANULARIDAD = 10
 
@@ -248,7 +249,8 @@ def corte(
 
     g = datos["granularidad"]
     k = max(0, int(segundo // g))
-    k = min(k, len(marcas) - 1)
+    if k >= len(marcas):
+        raise FueraDelFichero(segundo)  # ver adts.FueraDelFichero
     cual = datos.get("de_init") or [0] * len(marcas)
     init = inits[min(cual[k], len(inits) - 1)]
 

@@ -546,6 +546,8 @@ def serve_audio(rec_id: int, request: Request, desde: float = 0, dura: float = 0
     if (desde > 0 or dura > 0) and media == "audio/aac":
         try:
             principio, fin, dura_real = adts.tramo(path, desde, dura)
+        except adts.FueraDelFichero:
+            raise HTTPException(416, "Ese tramo aun no esta grabado") from None
         except Exception:  # noqa: BLE001 - si el indice falla, se sirve entero
             principio, fin, dura_real = 0, 0, 0.0
     elif (desde > 0 or dura > 0) and media == "audio/mp4":
@@ -554,6 +556,8 @@ def serve_audio(rec_id: int, request: Request, desde: float = 0, dura: float = 0
             with open(path, "rb") as fh:
                 fh.seek(init[0])
                 cabecera = fh.read(init[1] - init[0])
+        except adts.FueraDelFichero:
+            raise HTTPException(416, "Ese tramo aun no esta grabado") from None
         except Exception:  # noqa: BLE001
             principio, cabecera, fin, dura_real = 0, b"", 0, 0.0
 
