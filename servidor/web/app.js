@@ -107,6 +107,9 @@ function confirmar(titulo, texto, textoBoton = "Confirmar") {
   $("#modal-title").textContent = titulo;
   $("#modal-text").textContent = texto;
   $("#modal-ok").textContent = textoBoton;
+  // Al cerrar, el foco vuelve a donde estaba: si no, se iba al principio de
+  // la pagina y con el teclado habia que volver a buscar el sitio.
+  const previo = document.activeElement;
   fondo.classList.add("open");
   $("#modal-ok").focus();
 
@@ -117,6 +120,7 @@ function confirmar(titulo, texto, textoBoton = "Confirmar") {
       $("#modal-cancel").removeEventListener("click", no);
       fondo.removeEventListener("click", fuera);
       document.removeEventListener("keydown", tecla);
+      if (previo && previo.isConnected) previo.focus();
       resolve(valor);
     };
     const si = () => cerrar(true);
@@ -128,6 +132,12 @@ function confirmar(titulo, texto, textoBoton = "Confirmar") {
       // siempre, y llega antes que el clic: Intro sobre "Cancelar" borraba.
       if (e.key === "Enter" && !(document.activeElement instanceof HTMLButtonElement)) {
         cerrar(true);
+      }
+      // El foco no sale del dialogo: Tab alterna entre sus dos botones en vez
+      // de irse a la pagina de detras, que sigue ahi aunque no se vea.
+      if (e.key === "Tab") {
+        e.preventDefault();
+        (document.activeElement === $("#modal-ok") ? $("#modal-cancel") : $("#modal-ok")).focus();
       }
     };
     $("#modal-ok").addEventListener("click", si);
