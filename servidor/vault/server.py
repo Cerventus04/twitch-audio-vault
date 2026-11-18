@@ -110,8 +110,10 @@ def _disk_used() -> int:
 @app.get("/api/config")
 def get_config() -> dict:
     cfg = config.load()
-    # El secreto no vuelve al navegador; solo si esta puesto o no.
+    # Los secretos no vuelven al navegador: del de Twitch, solo si esta puesto;
+    # la contraseña del servidor, nada (el panel no la usa).
     cfg["client_secret"] = "********" if cfg["client_secret"] else ""
+    cfg.pop("auth_token", None)
     return cfg
 
 

@@ -92,6 +92,7 @@ def main() -> None:
     assert c.post("/api/config", json={"poll_seconds": "45", "retention_days": -3}).status_code == 200
     cfg = c.get("/api/config").json()
     assert (cfg["poll_seconds"], cfg["retention_days"]) == (45, 0), cfg
+    assert "auth_token" not in cfg, "la contraseña del servidor vuelve al navegador"
 
     # La carpeta no se cambia desde el panel: la base vive dentro, y cambiarla
     # en marcha partia el servidor en dos bases.
