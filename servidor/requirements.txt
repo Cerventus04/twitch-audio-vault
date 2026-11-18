@@ -1,4 +1,4 @@
-streamlink>=7.0
+streamlink>=7.5  # desde la 7.5 filtra siempre los anuncios de Twitch (ver recorder._session)
 fastapi>=0.115
 uvicorn[standard]>=0.30
 httpx>=0.27

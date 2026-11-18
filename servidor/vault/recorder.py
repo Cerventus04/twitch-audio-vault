@@ -43,8 +43,10 @@ def _utcnow() -> str:
 
 def _session() -> Streamlink:
     s = Streamlink()
-    # Sin anuncios pre-roll: evita que el fichero empiece con audio de publicidad.
-    s.set_option("twitch-disable-ads", True)
+    # Los anuncios no hace falta pedir que se quiten: streamlink los filtra
+    # siempre (su plugin de Twitch descarta todo segmento marcado como anuncio;
+    # la vieja opcion twitch-disable-ads no hacia nada desde streamlink 6, que
+    # cambio como se pasan las opciones de plugin). Por eso requirements pide >=7.5.
     s.set_option("stream-timeout", 60.0)
     s.set_option("stream-segment-attempts", 5)
     s.set_option("stream-segment-timeout", 20.0)
