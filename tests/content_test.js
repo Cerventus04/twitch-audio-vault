@@ -33,6 +33,7 @@ const medio = (duration = NaN) => ({
 function cargar(ruta, { video = medio(), canal = { videos: [] } } = {}) {
   const pedidos = []; // peticiones "match" al servidor: VOD pedido
   const pendientes = []; // sus respuestas, sin contestar
+  const oyente = {}; // quien atiende los mensajes del popup
   const ctx = vm.createContext({
     console, setTimeout, clearTimeout, setInterval: nada, performance,
     location: { href: "https://www.twitch.tv" + ruta, pathname: ruta },
@@ -47,7 +48,7 @@ function cargar(ruta, { video = medio(), canal = { videos: [] } } = {}) {
     },
     chrome: {
       runtime: {
-        onMessage: { addListener: nada },
+        onMessage: { addListener: (f) => (oyente.f = f) },
         sendMessage: (msg, cb) => {
           if (msg.type === "match") {
             pedidos.push(msg.vod);
@@ -68,7 +69,7 @@ function cargar(ruta, { video = medio(), canal = { videos: [] } } = {}) {
     Object.assign(ctx.location, { href: "https://www.twitch.tv" + nueva, pathname: nueva });
     vm.runInContext("onRouteChange()", ctx);
   };
-  return { ctx, pedidos, pendientes, ir, val: (expr) => vm.runInContext(expr, ctx) };
+  return { ctx, pedidos, pendientes, oyente, ir, val: (expr) => vm.runInContext(expr, ctx) };
 }
 
 const encontrado = {
@@ -146,12 +147,22 @@ function videoAtascado() {
   assert.strictEqual(pausas.length, 1, "el audio siguio sonando con el video atascado");
 }
 
+function volumenDeTwitch() {
+  // Con Web Audio manda el deslizador de Twitch (aqui al 20 %), no el del popup.
+  const { p, video, audio } = sonando();
+  p.val("webaudio = true");
+  video.volume = 0.2;
+  p.oyente.f({ type: "setVolume", value: 1 }, null, nada);
+  assert.strictEqual(audio.volume, 0.2, "sono con el volumen del popup en vez del de Twitch");
+}
+
 (async () => {
   await cambioDeVod();
   await deCanalEnDirectoAVod();
   solapeDeTrozos();
   saltoDentroDeLaVentana();
   videoAtascado();
+  volumenDeTwitch();
   console.log("ok");
   process.exit(0); // las esperas de mentira que queden no deben retener el proceso
 })().catch((e) => {

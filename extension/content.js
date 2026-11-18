@@ -1674,7 +1674,7 @@ async function enterVod(vodId, elemento = null) {
 
   audio = document.createElement("audio");
   audio.preload = "auto";
-  audio.volume = volumen;
+  audio.volume = volumenEfectivo();
   audio.style.display = "none";
   audio.addEventListener("error", () =>
     setStatus("No se pudo cargar el audio del servidor", "off")
@@ -1779,7 +1779,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
 
   if (msg.type === "setVolume") {
     volumen = Math.min(1, Math.max(0, Number(msg.value)));
-    if (audio) audio.volume = volumen;
+    if (audio) audio.volume = volumenEfectivo();
     chrome.storage.sync.set({ volumen });
     respond({ ok: true });
     return;
@@ -1802,7 +1802,7 @@ chrome.storage.onChanged.addListener((cambios, zona) => {
 // El volumen elegido se recuerda entre VODs y entre sesiones.
 chrome.storage.sync.get({ volumen: 1 }, (cfg) => {
   volumen = cfg.volumen;
-  if (audio) audio.volume = volumen;
+  if (audio) audio.volume = volumenEfectivo();
 });
 
 // Reintentos: al navegar dentro de Twitch el reproductor puede tardar en
