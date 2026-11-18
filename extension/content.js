@@ -1676,9 +1676,9 @@ async function enterVod(vodId, elemento = null) {
   audio.preload = "auto";
   audio.volume = volumenEfectivo();
   audio.style.display = "none";
-  audio.addEventListener("error", () =>
-    setStatus("No se pudo cargar el audio del servidor", "off")
-  );
+  // Los mismos eventos que los relevos: con solo el aviso, un fallo en la
+  // primera ventana dejaba el VOD silenciado y sin audio grabado.
+  eventosAudio(audio);
   document.body.appendChild(audio);
   ponerTrozo(trozos[0], trozos[0].inicio, "arranque");
 

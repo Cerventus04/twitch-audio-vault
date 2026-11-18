@@ -22,7 +22,11 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 // Elemento multimedia de mentira: lo justo para que una carga, si no se frena,
 // llegue hasta el final y enganche.
 const medio = (duration = NaN) => ({
-  addEventListener: nada, removeEventListener: nada, removeAttribute: nada,
+  oyentes: [],
+  addEventListener(n, f) { this.oyentes.push([n, f]); },
+  removeEventListener(n, f) { this.oyentes = this.oyentes.filter(([a, b]) => a !== n || b !== f); },
+  disparar(n) { this.oyentes.filter(([a]) => a === n).forEach(([, f]) => f()); },
+  removeAttribute: nada,
   pause: nada, load: nada, remove: nada, play: () => Promise.resolve(),
   getBoundingClientRect: () => ({ width: 1, height: 1 }),
   style: {}, paused: true, muted: false, volume: 1, currentTime: 0,
@@ -156,7 +160,22 @@ function volumenDeTwitch() {
   assert.strictEqual(audio.volume, 0.2, "sono con el volumen del popup en vez del de Twitch");
 }
 
+async function falloEnLaPrimeraVentana() {
+  // El servidor se cae con la primera ventana ya sonando: el VOD tiene que
+  // recuperar su sonido, no quedarse callado.
+  const video = { ...medio(3600), paused: false, readyState: 4, currentTime: 0 };
+  const p = cargar("/videos/111", { video });
+  p.pendientes[0](encontrado);
+  await espera(50);
+  const audio = p.val("audio");
+  audio.disparar("loadedmetadata");
+  assert.strictEqual(video.muted, true, "no se callo el VOD al cargar");
+  audio.disparar("error");
+  assert.strictEqual(video.muted, false, "el VOD se quedo callado tras el fallo");
+}
+
 (async () => {
+  await falloEnLaPrimeraVentana();
   await cambioDeVod();
   await deCanalEnDirectoAVod();
   solapeDeTrozos();
