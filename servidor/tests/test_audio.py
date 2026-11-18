@@ -81,6 +81,7 @@ def main() -> None:
     indice_mp4()
     demultiplexado_ts()
     afinado_del_desfase()
+    directo_que_no_abre()
     directo_de_canal_renombrado()
     grabaciones_traidas_de_otra_maquina()
     print("ok")
@@ -259,6 +260,42 @@ def afinado_del_desfase() -> None:
     )
     assert fila("cuadra") == {"vod_offset": 102.0, "offset_metodo": "pts"}, fila("cuadra")
     assert fila("vuelta") == {"vod_offset": 100.0, "offset_metodo": "reloj"}, fila("vuelta")
+
+
+def directo_que_no_abre() -> None:
+    """Un directo que no se puede abrir no deja una fila vacia por intento."""
+    from vault import recorder
+
+    class Lector:
+        def read(self, _n):
+            return b""  # el directo termina enseguida
+
+        def close(self):
+            pass
+
+    class Flujo:
+        abre = False
+
+        def open(self):
+            if not Flujo.abre:
+                raise OSError("no se puede abrir el HLS")
+            return Lector()
+
+    class Sesion:
+        def streams(self, _url):
+            return {"audio_only": Flujo()}
+
+    cuantas = lambda: db.one("SELECT COUNT(*) AS n FROM recordings WHERE login='noabre'")["n"]
+    real, recorder._session = recorder._session, Sesion
+    try:
+        for _ in range(3):  # tres sondeos seguidos con el canal en directo
+            recorder.Recording("noabre", {"id": "1", "title": "t"}).run()
+        assert cuantas() == 0, cuantas()
+        Flujo.abre = True
+        recorder.Recording("noabre", {"id": "1", "title": "t"}).run()
+        assert cuantas() == 1, cuantas()
+    finally:
+        recorder._session = real
 
 
 def directo_de_canal_renombrado() -> None:

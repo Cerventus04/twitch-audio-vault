@@ -224,6 +224,7 @@ class Recording(threading.Thread):
             self._record()
         except Exception as exc:  # noqa: BLE001 - se guarda para mostrarlo en la UI
             self.error = f"{type(exc).__name__}: {exc}"
+            log.warning("%s: no se pudo grabar: %s", self.login, self.error)
             self._finish("error")
         else:
             # Si se pidio parar, el directo seguia y la grabacion queda a
@@ -244,36 +245,15 @@ class Recording(threading.Thread):
             raise RuntimeError("el canal no ofrece streams (puede haber terminado)")
 
         quality, stream = _pick(streams, cfg["audio_quality"])
-        started = dt.datetime.now(dt.timezone.utc)
-        self.path = target_path(
-            self.login, started, self.stream_info.get("title") or ""
-        )
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-
-        canal = db.one(
-            "SELECT display_name, avatar_url FROM channels WHERE login=?",
-            (self.login,),
-        ) or {}
-        with db.tx() as conn:
-            cur = conn.execute(
-                """INSERT INTO recordings
-                   (login, stream_id, title, capture_start, stream_start, path,
-                    status, display_name, avatar_url)
-                   VALUES (?,?,?,?,?,?,'recording',?,?)""",
-                (
-                    self.login,
-                    self.stream_info.get("id"),
-                    self.stream_info.get("title"),
-                    started.isoformat(timespec="seconds"),
-                    self.stream_info.get("started_at"),
-                    str(self.path),
-                    canal.get("display_name"),
-                    canal.get("avatar_url"),
-                ),
-            )
-            self.recording_id = cur.lastrowid
-
+        # Se abre ANTES de apuntar nada: si no abre, el vigilante lo reintenta
+        # en cada sondeo, y cada intento dejaba una fila "error" vacia.
         fd = stream.open()
+        try:
+            self._apuntar()
+        except BaseException:
+            fd.close()  # el lector de HLS seguiria bajando segmentos
+            raise
+
         demuxer = tsdemux.Demuxer()
         crudo = False  # se activa si el flujo no viene en MPEG-TS
         primero = True
@@ -329,6 +309,37 @@ class Recording(threading.Thread):
                         self.bytes_written += len(cola)
         finally:
             fd.close()
+
+    def _apuntar(self) -> None:
+        """Ruta del fichero y fila en la base, con el directo ya abierto."""
+        started = dt.datetime.now(dt.timezone.utc)
+        self.path = target_path(
+            self.login, started, self.stream_info.get("title") or ""
+        )
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        canal = db.one(
+            "SELECT display_name, avatar_url FROM channels WHERE login=?",
+            (self.login,),
+        ) or {}
+        with db.tx() as conn:
+            cur = conn.execute(
+                """INSERT INTO recordings
+                   (login, stream_id, title, capture_start, stream_start, path,
+                    status, display_name, avatar_url)
+                   VALUES (?,?,?,?,?,?,'recording',?,?)""",
+                (
+                    self.login,
+                    self.stream_info.get("id"),
+                    self.stream_info.get("title"),
+                    started.isoformat(timespec="seconds"),
+                    self.stream_info.get("started_at"),
+                    str(self.path),
+                    canal.get("display_name"),
+                    canal.get("avatar_url"),
+                ),
+            )
+            self.recording_id = cur.lastrowid
 
     def _guardar_pts(self, pts: float) -> None:
         if self.recording_id is None:
