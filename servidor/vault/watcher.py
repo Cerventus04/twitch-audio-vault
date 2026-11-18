@@ -420,7 +420,14 @@ class Watcher(threading.Thread):
             (cutoff,),
         )
         for row in old:
-            borrar_audio(Path(row["path"]))
+            try:
+                borrar_audio(Path(row["path"]))
+            except OSError:
+                # En uso (Windows no deja borrar un fichero abierto, y /audio lo
+                # tiene abierto mientras suena). Antes cortaba la pasada entera
+                # y el panel lo mostraba como error de conexion. Se reintenta
+                # en la siguiente vuelta.
+                continue
             with db.tx() as conn:
                 conn.execute("DELETE FROM recordings WHERE id=?", (row["id"],))
 

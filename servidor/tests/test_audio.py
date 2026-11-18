@@ -91,7 +91,28 @@ def main() -> None:
     directo_que_no_abre()
     directo_de_canal_renombrado()
     grabaciones_traidas_de_otra_maquina()
+    retencion_con_un_fichero_en_uso()  # la ultima: borra lo viejo de las demas
     print("ok")
+
+
+def retencion_con_un_fichero_en_uso() -> None:
+    """Un fichero abierto (sonando) no corta la limpieza de los demas."""
+    from vault import config, watcher
+
+    rutas = {}
+    for n in ("escuchando", "otra"):
+        rutas[n] = TMP / f"ret-{n}.aac"
+        rutas[n].write_bytes(b"x")
+        with db.tx() as conn:
+            conn.execute(
+                "INSERT INTO recordings (login, capture_start, path, status) "
+                "VALUES ('x', '2020-01-01T00:00:00+00:00', ?, 'done')", (str(rutas[n]),),
+            )
+    config.save({"retention_days": 7})
+    with open(rutas["escuchando"], "rb"):  # lo que hace /audio mientras suena
+        watcher.Watcher()._apply_retention()  # antes: PermissionError en Windows
+    quedan = {Path(r["path"]).name for r in db.query("SELECT path FROM recordings")}
+    assert "ret-otra.aac" not in quedan and not rutas["otra"].exists(), quedan
 
 
 def grabaciones_traidas_de_otra_maquina() -> None:
