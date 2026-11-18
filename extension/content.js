@@ -110,11 +110,6 @@ let reservaBuscada = null;
 let temporizadorRelevo = null;
 let cambiando = false; // evita que el bucle pise una carga en curso
 let baseOffset = 0;
-// Ajuste manual del desfase. Ya no hay interfaz para tocarlo: el calculo
-// automatico se corrige solo (ver `_afinar_desfases` en el servidor). Se
-// mantiene en las cuentas porque el servidor sigue admitiendo un
-// `offset_override` por grabacion.
-let nudge = 0;
 let enabled = true;
 let volumen = 1; // volumen propio, independiente del de Twitch
 // Velocidad a la que el usuario ve el VOD (1x normalmente). El audio SIEMPRE la
@@ -142,7 +137,7 @@ let seekUsuario = false;
 let trozoFallido = null;
 let cancelarCarga = null;
 let generacion = 0;
-const posicionAudio = () => audio.currentTime - origen + baseOffset + nudge;
+const posicionAudio = () => audio.currentTime - origen + baseOffset;
 // El ancla congela la posicion MIENTRAS se pide una ventana nueva, para que no
 // se mueva el suelo bajo los pies durante la carga. Solo vale, por tanto, si
 // hay una carga en vuelo (`cambiando`).
@@ -263,9 +258,9 @@ function reloj(segundos) {
 /** Tramo del VOD que cubre un trozo, tal como se ve en la barra de Twitch. */
 function tramoDelTrozo(s) {
   if (!s) return "";
-  const desde = reloj(s.inicio + nudge);
+  const desde = reloj(s.inicio);
   if (s.fin === null || s.fin === undefined) return `desde ${desde}`;
-  return `${desde} – ${reloj(s.fin + nudge)}`;
+  return `${desde} – ${reloj(s.fin)}`;
 }
 
 // Todo el trafico con el servidor pasa por el service worker (ver background.js).
@@ -447,12 +442,12 @@ function volumenEfectivo() {
 /** Trozo que cubre ese segundo del VOD, o null si cae en un hueco. */
 function trozoPara(t) {
   for (const s of trozos) {
-    const ini = s.inicio + nudge;
+    const ini = s.inicio;
     // Si aun se esta grabando no se sabe donde acaba: se fia de la duracion
     // que reporte el propio fichero una vez cargado.
     const fin =
       s.fin !== null
-        ? s.fin + nudge
+        ? s.fin
         : ini +
           (trozoActual === s && audio && audio.duration && ventanaFin === null
             ? recorte + (audio.duration - inicioFichero)
@@ -463,7 +458,7 @@ function trozoPara(t) {
 }
 
 /** Segundo del fichero, contando desde su principio, para un instante del VOD. */
-const dentroDelTrozo = (s, t) => t - s.inicio - nudge;
+const dentroDelTrozo = (s, t) => t - s.inicio;
 
 /** True si conviene pedir el trozo recortado de nuevo en vez de mover la aguja.
  *
@@ -693,14 +688,10 @@ function soltarReserva() {
  * desfasadas hasta `granularidad` segundos. Ese fue el fallo del primer intento
  * de encadenado: recargas continuas cada +10 s (justo la granularidad).
  */
-function BASE_URL(s) {
-  return base + s.audio_url;
-}
-
 function paramsDeChunk(s, corte) {
   const org = s.absoluto ? s.origen || 0 : -corte;
   const ini = s.absoluto ? org + corte : 0;
-  let url = BASE_URL(s);
+  let url = base + s.audio_url;
   url += (url.includes("?") ? "&" : "?") + "desde=" + corte + "&dura=" + DURA_RELEVO;
   return { origen: org, inicioFichero: ini, recorte: corte, ventanaFin: ini + DURA_RELEVO, url };
 }
@@ -943,15 +934,10 @@ function prepararRelevo(s, corte, cambioActual, intentos = 0) {
   reservaParams = p;
 }
 
-/** Cambia al elemento de reserva. Devuelve false si aun no estaba listo. */
-// Chrome deja de descargar y suelta el bufer de un elemento pausado, silenciado
-// y oculto. La reserva se prepara ~290 s antes de usarse, asi que para cuando
-// toma el testigo puede tener solo los metadatos. Un empujon a la aguja la
-// obliga a volver a pedir datos.
 // Posicion que le toca a la reserva, en SU escala, sin tocar la del elemento
 // que suena ahora mismo.
 const posicionEnReserva = (p) =>
-  p.origen + (posicionEfectiva() - baseOffset - nudge);
+  p.origen + (posicionEfectiva() - baseOffset);
 
 // Los dos tramos se solapan varios segundos, asi que en el momento del cambio
 // LOS DOS LLEVAN EL MISMO AUDIO. Cortar en seco empalma dos flujos decodificados
@@ -992,6 +978,7 @@ function fundirYSoltar(viejo, nuevo) {
   escalon();
 }
 
+/** Cambia al elemento de reserva. Devuelve false si aun no estaba listo. */
 function hacerRelevo() {
   if (!reserva || !relevoListo) return false;
 
@@ -1071,12 +1058,27 @@ function hacerRelevo() {
 }
 
 // Posicion que toca dentro del fichero, ya en la escala que usa el elemento.
-const wanted = () => origen + (posicionEfectiva() - baseOffset - nudge);
+const wanted = () => origen + (posicionEfectiva() - baseOffset);
 
 function resync() {
   if (!audio || !video || !enabled) return;
   audio.playbackRate = tasaUsuario;
   if (reserva) reserva.playbackRate = tasaUsuario;
+}
+
+/** El fichero se agoto. Que se acabe NO implica que la grabacion haya fallado:
+ * el servidor puede haber servido un tramo mas corto que el pedido. Solo es el
+ * final de verdad si la posicion ya esta al borde del trozo; si no, se recarga
+ * desde aqui (un tropiezo corto) en vez de condenar el trozo, que dejaba el
+ * VOD entero sin audio grabado hasta el siguiente salto. */
+function alAcabarse(enVod, motivo) {
+  const fin = trozoActual.fin;
+  if (fin !== null && fin !== undefined && enVod >= fin - 2) {
+    trozoFallido = trozoActual;
+    fallbackAudio("fin-de-grabacion");
+  } else {
+    ponerTrozo(trozoActual, enVod, motivo);
+  }
 }
 
 function tick() {
@@ -1124,20 +1126,7 @@ function tick() {
     // Si el fichero acaba antes del limite nominal y no hay cola lista,
     // no recargar indefinidamente el mismo ultimo segundo.
     if (audio.ended && !relevoListo) {
-      // Que el fichero se acabe NO implica que la grabacion haya fallado: el
-      // servidor puede haber servido un tramo mas corto que el pedido. Solo es
-      // el final de verdad si la posicion ya esta al borde del trozo. Si no, se
-      // recarga desde aqui (un tropiezo corto) en vez de condenar el trozo, que
-      // dejaba el VOD entero sin audio grabado hasta el siguiente salto.
-      const finTrozo = trozoActual.fin;
-      const enElFinal =
-        finTrozo !== null && finTrozo !== undefined && enVod >= finTrozo - 2;
-      if (enElFinal) {
-        trozoFallido = trozoActual;
-        fallbackAudio("fin-de-grabacion");
-        return;
-      }
-      ponerTrozo(trozoActual, enVod, "tramo-corto");
+      alAcabarse(enVod, "tramo-corto");
       return;
     }
     if (!hacerRelevo()) {
@@ -1160,15 +1149,7 @@ function tick() {
   }
 
   if (audio.ended) {
-    const finTrozo = trozoActual.fin;
-    const enElFinal =
-      finTrozo !== null && finTrozo !== undefined && enVod >= finTrozo - 2;
-    if (enElFinal) {
-      trozoFallido = trozoActual;
-      fallbackAudio("fin-de-grabacion");
-      return;
-    }
-    ponerTrozo(trozoActual, enVod, "fichero-acabado");
+    alAcabarse(enVod, "fichero-acabado");
     return;
   }
 
@@ -1214,15 +1195,12 @@ function tick() {
   }
 
   if (audioMaster) {
-    // EXPERIMENTO: en vez de dejar que el video se atrase mientras esta oculto
-    // y recolocarlo al volver, se intenta ACELERARLO para que persiga al audio
-    // en tiempo real. Si Chrome respeta el playbackRate de una pestana oculta,
-    // al volver ya estaria en sync y no haria falta ningun salto.
-    //
-    // El audio se mantiene a 1x aparte: nunca hereda la velocidad de
-    // persecucion (si no, se oiria acelerado). Si Chrome capa el decodificado
-    // de fondo, el video se atrasa igual y el salto-hacia-adelante de la vuelta
-    // lo recoloca como hasta ahora: este experimento no puede empeorar nada.
+    // En vez de dejar que el video se atrase mientras esta oculto y
+    // recolocarlo al volver, se le ACELERA para que persiga al audio en tiempo
+    // real. El audio se mantiene a la velocidad del usuario: nunca hereda la
+    // de persecucion (si no, se oiria acelerado). Si Chrome capa el
+    // decodificado de fondo, el video se atrasa igual y lo recoloca el salto
+    // hacia delante de la vuelta.
     audio.playbackRate = tasaUsuario;
     if (document.hidden && video) {
       // El video, oculto, va mas lento de lo que Chrome deberia; se le acelera
@@ -1424,12 +1402,6 @@ function soltarTeclasDeMedios() {
   } catch { /* nada */ }
 }
 
-/** Comprueba que seguimos sobre el reproductor bueno y, si no, se reengancha.
- *
- * No basta con mirar si el elemento sigue en el DOM: al navegar dentro de
- * Twitch el reproductor anterior puede quedarse ahi, oculto, mientras el nuevo
- * se monta al lado. Por eso se vuelve a elegir cual es el principal.
- */
 // Portada de un canal: la URL no dice que suena, asi que lo que decidio
 // enganchar (duracion FIJA e igual a la del VOD grabado) hay que seguir
 // comprobandolo. Si el canal arranca directo, Twitch cambia lo que suena SIN
@@ -1444,8 +1416,12 @@ function sigueSiendoElVod() {
   if (duracionCanal === null) return true;
   const d = video.duration;
   // NaN: el reproductor esta cambiando de fuente y aun no sabe su duracion.
-  // No se decide nada con eso; se espera a la siguiente vuelta.
-  if (Number.isNaN(d)) return false;
+  // No se decide nada con eso, pero se calla: sin esto el audio seguia sonando
+  // suelto mientras el bucle se saltaba todas las vueltas.
+  if (Number.isNaN(d)) {
+    audio.pause();
+    return false;
+  }
   // Un VOD tiene duracion finita y fija. Un directo da Infinity, o una finita
   // que no se parece en nada (empieza desde cero y crece).
   if (Number.isFinite(d) && Math.abs(d - duracionCanal) <= TOLERANCIA_CANAL) return true;
@@ -1465,6 +1441,12 @@ function sigueSiendoElVod() {
   return false;
 }
 
+/** Comprueba que seguimos sobre el reproductor bueno y, si no, se reengancha.
+ *
+ * No basta con mirar si el elemento sigue en el DOM: al navegar dentro de
+ * Twitch el reproductor anterior puede quedarse ahi, oculto, mientras el nuevo
+ * se monta al lado. Por eso se vuelve a elegir cual es el principal.
+ */
 function vigilarElemento() {
   if (!video) return false;
   const nuevo = videoPrincipal();
@@ -1634,7 +1616,6 @@ function teardown() {
   cambiando = false;
   currentVod = null;
   duracionCanal = null;
-  nudge = 0;
   baseOffset = 0;
   setStatus("Esto no es un VOD");
 }
@@ -1645,6 +1626,9 @@ async function enterVod(vodId, elemento = null) {
   setStatus("Buscando audio grabado…");
 
   const reply = await ask({ type: "match", vod: vodId });
+  // Se navego mientras se esperaba: enganchar ahora pondria el audio de este
+  // VOD sobre el de la pagina nueva.
+  if (generacion !== sesion) return;
   if (!reply.ok) {
     setStatus("Twitch Audio Vault no esta abierto", "off");
     return;
@@ -1657,6 +1641,7 @@ async function enterVod(vodId, elemento = null) {
   }
 
   const el = elemento || (await findVideoElement());
+  if (generacion !== sesion) return;
   if (!el) {
     setStatus("No encuentro el reproductor", "off");
     return;
@@ -1753,14 +1738,11 @@ function onRouteChange() {
 chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
   if (msg.type === "state") {
     respond({
-      onVod: Boolean(currentVod),
       hasAudio: Boolean(track),
       status,
       enabled,
-      nudge,
       volumen,
       volumenDeTwitch: webaudio,
-      offset: baseOffset,
     });
     return;
   }

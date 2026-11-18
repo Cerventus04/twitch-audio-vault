@@ -51,13 +51,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
           `/api/canal?login=${encodeURIComponent(msg.login)}`
         );
         respond({ ok: true, data });
-      } else if (msg.type === "offset") {
-        await call(`/api/recordings/${msg.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ offset_override: msg.value }),
-        });
-        respond({ ok: true });
       } else if (msg.type === "dura") {
         // Duracion REAL del tramo que va a servir el servidor, leida de la
         // cabecera X-Dura-Real. Se pide 1 byte: la cabecera viaja en la

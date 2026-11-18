@@ -26,8 +26,6 @@ class Demuxer:
         self.pmt_pid: int | None = None
         self.audio_pid: int | None = None
         self._pes = bytearray()  # PES en construccion
-        self.paquetes = 0
-        self.descartados = 0
         # PTS (en segundos) del primer audio capturado. Es la marca que el
         # transcodificador de Twitch pone al contenido, y el VOD usa la misma
         # linea temporal: comparandolas sale el desfase exacto.
@@ -116,13 +114,11 @@ class Demuxer:
                 j = buf.find(bytes([SYNC]), i + 1)
                 if j < 0 or j + PAQUETE > n:
                     break
-                self.descartados += j - i
                 i = j
                 continue
 
             paquete = buf[i : i + PAQUETE]
             i += PAQUETE
-            self.paquetes += 1
 
             b1, b2, b3 = paquete[1], paquete[2], paquete[3]
             if b1 & 0x80:  # transport_error_indicator
@@ -161,21 +157,3 @@ class Demuxer:
         self._cerrar_pes(salida)
         return bytes(salida)
 
-
-def convertir(origen, destino) -> tuple[int, int]:
-    """Convierte un fichero ya grabado. Devuelve (bytes_entrada, bytes_salida)."""
-    d = Demuxer()
-    entrada = salida = 0
-    with open(origen, "rb") as fi, open(destino, "wb") as fo:
-        while True:
-            trozo = fi.read(1 << 20)
-            if not trozo:
-                break
-            entrada += len(trozo)
-            out = d.feed(trozo)
-            fo.write(out)
-            salida += len(out)
-        out = d.flush()
-        fo.write(out)
-        salida += len(out)
-    return entrada, salida

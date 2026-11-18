@@ -112,6 +112,14 @@ def get_config() -> dict:
 def set_config(payload: dict = Body(...)) -> dict:
     if payload.get("client_secret") == "********":
         payload.pop("client_secret")
+    # El vigilante hace int() de estos en cada vuelta fuera de su try: un valor
+    # que no sea numero mataba el hilo y no se volvia a grabar nada.
+    for clave in ("poll_seconds", "retention_days"):
+        if clave in payload:
+            try:
+                payload[clave] = max(0, int(payload[clave]))
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"{clave} tiene que ser un numero") from None
     config.save(payload)
     result: dict = {"ok": True}
     cfg = config.load()
@@ -216,18 +224,6 @@ def list_recordings(login: str | None = None) -> list[dict]:
             else (r["vod_offset"] or 0.0)
         )
     return rows
-
-
-@app.patch("/api/recordings/{rec_id}")
-def update_recording(rec_id: int, payload: dict = Body(...)) -> dict:
-    if "offset_override" in payload:
-        value = payload["offset_override"]
-        with db.tx() as conn:
-            conn.execute(
-                "UPDATE recordings SET offset_override=? WHERE id=?",
-                (None if value is None else float(value), rec_id),
-            )
-    return {"ok": True}
 
 
 @app.delete("/api/recordings/{rec_id}")

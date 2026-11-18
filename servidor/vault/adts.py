@@ -150,14 +150,7 @@ def indice(audio: Path) -> dict:
     datos = _reanudable(audio, _leer_indice_cacheado(audio, cache))
     if datos is not None and datos.get("bytes") == audio.stat().st_size:
         return datos  # nada ha cambiado
-    if datos is not None:
-        datos = construir(audio, previo=datos)
-        try:
-            cache.write_text(json.dumps(datos), encoding="utf-8")
-        except OSError:
-            pass
-        return datos
-    datos = construir(audio)
+    datos = construir(audio, previo=datos)  # sin previo, desde cero
     try:
         cache.write_text(json.dumps(datos), encoding="utf-8")
     except OSError:
@@ -194,34 +187,3 @@ def tramo(audio: Path, segundo: float, dura: float = 0) -> tuple[int, int, float
             final_real = tiempos[j] if exactos else j * g
     return principio, fin, max(0.0, final_real - inicio_real)
 
-
-def byte_hasta(audio: Path, segundo: float) -> int:
-    """Byte donde termina el tramo que llega hasta ese segundo.
-
-    Devuelve 0 si cae mas alla del final del fichero, que es como `/audio`
-    expresa "hasta el final". No vale reusar `byte_de` para esto: aquel
-    recorta al ultimo tramo, asi que pedirle un segundo pasado el final
-    devolveria la ultima marca y cortaria el audio antes de tiempo.
-    """
-    datos = indice(audio)
-    marcas = datos["marcas"]
-    k = int(segundo // datos["granularidad"])
-    if k < 0 or k >= len(marcas):
-        return 0
-    return marcas[k]
-
-
-def byte_de(audio: Path, segundo: float) -> tuple[int, float]:
-    """Byte donde empieza el tramo que contiene ese segundo, y su tiempo real.
-
-    Se redondea SIEMPRE hacia abajo a un multiplo de la granularidad para que
-    el cliente pueda calcular el mismo valor sin preguntar.
-    """
-    datos = indice(audio)
-    g = datos["granularidad"]
-    k = max(0, int(segundo // g))
-    marcas = datos["marcas"]
-    if not marcas:
-        return 0, 0.0
-    k = min(k, len(marcas) - 1)
-    return marcas[k], float(k * g)

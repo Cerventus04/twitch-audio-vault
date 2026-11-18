@@ -82,35 +82,21 @@ function humanDate(iso) {
   return `${d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" })}, ${hora}`;
 }
 
-/** "hace 5 min", "hace 3 dias"… mas facil de situar que una fecha absoluta. */
-function haceCuanto(iso) {
+/** "hace 5 minutos", "hace 3 dias"… mas facil de situar que una fecha
+ * absoluta. `corto` lo abrevia para sitios estrechos: "hace 9 h". */
+function haceCuanto(iso, corto = false) {
   if (!iso) return "";
   const segundos = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (segundos < 90) return "hace un momento";
+  if (segundos < 90) return corto ? "ahora mismo" : "hace un momento";
   const escala = [
-    [60, "minuto", "minutos"],
-    [3600, "hora", "horas"],
-    [86400, "dia", "dias"],
+    [60, "minuto", "minutos", "min"],
+    [3600, "hora", "horas", "h"],
+    [86400, "dia", "dias", "d"],
   ];
   let unidad = escala[0];
   for (const e of escala) if (segundos >= e[0]) unidad = e;
   const n = Math.floor(segundos / unidad[0]);
-  return `hace ${n} ${n === 1 ? unidad[1] : unidad[2]}`;
-}
-
-/** Como haceCuanto pero abreviado, para sitios estrechos: "hace 9 h". */
-function haceCuantoCorto(iso) {
-  if (!iso) return "";
-  const segundos = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (segundos < 90) return "ahora mismo";
-  const escala = [
-    [60, "min"],
-    [3600, "h"],
-    [86400, "d"],
-  ];
-  let unidad = escala[0];
-  for (const e of escala) if (segundos >= e[0]) unidad = e;
-  return `hace ${Math.floor(segundos / unidad[0])} ${unidad[1]}`;
+  return `hace ${n} ${corto ? unidad[3] : n === 1 ? unidad[1] : unidad[2]}`;
 }
 
 // ------------------------------------------------------------ confirmacion
@@ -275,7 +261,7 @@ async function loadChannels() {
             ? "<span>pausado</span>"
             : ultima[c.login]
             ? `<span title="Ultima grabacion ${haceCuanto(ultima[c.login])}">` +
-              `grabado ${haceCuantoCorto(ultima[c.login])}</span>`
+              `grabado ${haceCuanto(ultima[c.login], true)}</span>`
             : "<span>en espera</span>"
         }</div>
       </div>

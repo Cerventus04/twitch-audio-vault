@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vault import db, server  # noqa: E402
+from vault import adts, db, server  # noqa: E402
 
 DATOS = bytes([0xFF]) + bytes(i % 251 for i in range(1, 1000))  # 1000 bytes, "AAC"
 
@@ -68,7 +68,40 @@ def main() -> None:
     assert c.post("/api/config", json={}, headers={"Origin": "chrome-extension://abcdef"}).status_code == 200
     assert c.get("/api/status", headers={"Origin": "https://malo.example"}).status_code == 200
 
+    # Un poll_seconds que no sea numero mataba el hilo del vigilante.
+    assert c.post("/api/config", json={"poll_seconds": "abc"}).status_code == 400
+    assert c.post("/api/config", json={"poll_seconds": None}).status_code == 400
+    assert c.post("/api/config", json={"poll_seconds": "45", "retention_days": -3}).status_code == 200
+    cfg = c.get("/api/config").json()
+    assert (cfg["poll_seconds"], cfg["retention_days"]) == (45, 0), cfg
+
+    indice_incremental()
     print("ok")
+
+
+def indice_incremental() -> None:
+    """El indice de una grabacion que crece debe salir igual que hecho de una vez."""
+    # Trama ADTS de 100 bytes, AAC-LC a 48 kHz: 1024 muestras = 21,33 ms.
+    trama = bytes([0xFF, 0xF1, 0x4C, 0x80, 100 >> 3, ((100 & 7) << 5) | 0x1F, 0xFC]) + bytes(93)
+    todo = trama * 1000  # 21,3 s
+    entero, creciendo = TMP / "entero.aac", TMP / "creciendo.aac"
+    entero.write_bytes(todo)
+    # Se corta a mitad de una trama, como cuando el grabador aun esta escribiendo.
+    creciendo.write_bytes(todo[: 500 * 100 + 50])
+    adts.indice(creciendo)
+    with open(creciendo, "ab") as fh:
+        fh.write(todo[500 * 100 + 50 :])
+
+    a, b = adts.indice(creciendo), adts.indice(entero)
+    assert a["marcas"] == b["marcas"] == [0, 46900, 93800], a["marcas"]
+    assert a["tiempos"] == b["tiempos"] and abs(a["duracion"] - 1000 * 1024 / 48000) < 1e-9
+
+    # Ventana de 10 s desde 0: corta en la segunda marca y dice su duracion real.
+    principio, fin, dura = adts.tramo(entero, 0, 10)
+    assert (principio, fin) == (0, 46900) and abs(dura - 469 * 1024 / 48000) < 1e-9
+    # Pedir mas de lo que queda sirve hasta el final, no una ventana vacia.
+    principio, fin, dura = adts.tramo(entero, 12, 300)
+    assert (principio, fin) == (46900, 0) and abs(dura - 531 * 1024 / 48000) < 1e-9
 
 
 if __name__ == "__main__":

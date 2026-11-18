@@ -86,13 +86,13 @@ def primer_tfdt(datos: bytes) -> int | None:
     return struct.unpack_from(">I", datos, a + 4)[0]
 
 
-def primer_tiempo(datos: bytes, escala_conocida: int | None = None) -> float | None:
+def primer_tiempo(datos: bytes) -> float | None:
     """Segundos de contenido en que empieza lo que hay en `datos`.
 
     Equivale al PTS del MPEG-TS: sirve para saber a que punto del VOD
     corresponde el principio de una grabacion.
     """
-    ts = escala_conocida or escala(datos)
+    ts = escala(datos)
     bmdt = primer_tfdt(datos)
     if ts is None or bmdt is None:
         return None

@@ -212,13 +212,9 @@ def indice(audio: Path) -> dict:
     """
     cache = audio.with_suffix(audio.suffix + ".m4idx")
     datos = _reanudable(audio, _cacheado(audio, cache))
-    if datos is not None:
-        if datos.get("bytes") == audio.stat().st_size:
-            return datos  # nada ha cambiado
-        datos = construir(audio, previo=datos)
-        _guardar(cache, datos)
-        return datos
-    datos = construir(audio)
+    if datos is not None and datos.get("bytes") == audio.stat().st_size:
+        return datos  # nada ha cambiado
+    datos = construir(audio, previo=datos)  # sin previo, desde cero
     _guardar(cache, datos)
     return datos
 
