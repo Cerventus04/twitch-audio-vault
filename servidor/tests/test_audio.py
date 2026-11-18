@@ -18,7 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vault import adts, db, server, twitch  # noqa: E402
+import struct  # noqa: E402
+
+from vault import adts, db, mp4idx, server, twitch  # noqa: E402
 
 DATOS = bytes([0xFF]) + bytes(i % 251 for i in range(1, 1000))  # 1000 bytes, "AAC"
 
@@ -76,6 +78,7 @@ def main() -> None:
     assert (cfg["poll_seconds"], cfg["retention_days"]) == (45, 0), cfg
 
     indice_incremental()
+    indice_mp4()
     directo_de_canal_renombrado()
     grabaciones_traidas_de_otra_maquina()
     print("ok")
@@ -105,6 +108,58 @@ def grabaciones_traidas_de_otra_maquina() -> None:
     for vieja, esperada in rutas.items():
         ahora = db.one("SELECT path FROM recordings WHERE id=?", (ids[vieja],))["path"]
         assert ahora == str(esperada or vieja), (vieja, ahora)
+
+
+def indice_mp4() -> None:
+    """MP4 fragmentado: marcas, cabecera que toca a cada tramo y reanudacion."""
+
+    def caja(tipo: bytes, cuerpo: bytes = b"") -> bytes:
+        return struct.pack(">I", 8 + len(cuerpo)) + tipo + cuerpo
+
+    # Inicializacion: escala de 48000 en mdhd (version 0).
+    mdhd = caja(b"mdhd", bytes(12) + struct.pack(">I", 48000) + bytes(8))
+    init = caja(b"ftyp", b"iso6") + caja(b"moov", caja(b"trak", caja(b"mdia", mdhd)))
+
+    def segmento(segundo: int) -> bytes:  # 2 s de audio cada uno
+        tfdt = caja(b"tfdt", b"\x01\x00\x00\x00" + struct.pack(">Q", segundo * 48000))
+        return caja(b"styp", b"msdh") + caja(b"moof", caja(b"traf", tfdt)) + caja(b"mdat", bytes(100))
+
+    # 30 segmentos (60 s) desde el segundo 1000 de contenido, y a mitad un
+    # segundo segmento de inicializacion, como el que manda Twitch tras una
+    # discontinuidad.
+    datos = bytearray(init)
+    inicio_seg = {}
+    inits = [[0, len(init)]]
+    for i in range(30):
+        if i == 15:
+            inits.append([len(datos), len(datos) + len(init)])
+            datos += init
+        inicio_seg[i] = len(datos)
+        datos += segmento(1000 + 2 * i)
+    datos = bytes(datos)
+
+    entero, creciendo = TMP / "entero.mp4", TMP / "creciendo.mp4"
+    entero.write_bytes(datos)
+    # Cortado a mitad del segmento 10, que lleva marca: su styp ya escrito, su moof aun no.
+    creciendo.write_bytes(datos[: inicio_seg[10] + 20])
+    mp4idx.indice(creciendo)
+    with open(creciendo, "ab") as fh:
+        fh.write(datos[inicio_seg[10] + 20 :])
+
+    a, b = mp4idx.indice(creciendo), mp4idx.indice(entero)
+    for clave in ("marcas", "tiempos", "de_init", "inits"):
+        assert a[clave] == b[clave], (clave, a[clave], b[clave])
+    # Una marca cada 10 s: segmentos 0, 5, 10... y empieza en su styp.
+    assert b["marcas"] == [inicio_seg[i] for i in (0, 5, 10, 15, 20, 25)], b["marcas"]
+    assert b["inits"] == inits, b["inits"]
+
+    # Ventana de 25 s desde el 12: de la marca de 10 s a la de 30 s, con la
+    # primera inicializacion.
+    cab, principio, fin, real = mp4idx.corte(entero, 12, 25)
+    assert (cab, principio, fin, real) == (inits[0], inicio_seg[5], inicio_seg[15], 20.0)
+    # Despues de la discontinuidad toca la segunda inicializacion.
+    cab, principio, fin, real = mp4idx.corte(entero, 41, 0)
+    assert (cab, principio, fin) == (inits[1], inicio_seg[20], len(datos)), (cab, principio, fin)
 
 
 def directo_de_canal_renombrado() -> None:
