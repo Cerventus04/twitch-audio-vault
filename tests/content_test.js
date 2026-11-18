@@ -113,10 +113,45 @@ function solapeDeTrozos() {
   assert.deepStrictEqual([cual(500), cual(1030), cual(5000)], [1, 2, 2], "solape: eligio el trozo viejo");
 }
 
+/** Un VOD sonando con la ventana 1000-1300 s del trozo ya cargada. */
+function sonando() {
+  const video = { ...medio(3600), paused: false, readyState: 4, currentTime: 1020 };
+  const p = cargar("/", { video });
+  const pausas = [];
+  const audio = { ...medio(310), paused: false, readyState: 4, currentTime: 20, pause: () => pausas.push(1) };
+  const esperas = [];
+  Object.assign(p.ctx, { videoFalso: video, audioFalso: audio, setTimeout: (_f, ms) => (esperas.push(ms), 0) });
+  p.val(`enabled = true; video = videoFalso; audio = audioFalso; track = { duration: 3600 };
+    trozos = [{ id: 1, inicio: 0, fin: null, granularidad: 10, ventana: true }];
+    trozoActual = trozos[0]; origen = -1000; inicioFichero = 0; recorte = 1000;
+    ventanaFin = 300; baseOffset = 0; programarRelevo()`);
+  return { p, video, audio, esperas, pausas };
+}
+
+function saltoDentroDeLaVentana() {
+  // Cambio en el 290 del fichero: con la aguja en 20 el relevo se pide dentro
+  // de 225 s. Tras saltar al 250 tiene que pedirse ya, o llega tarde.
+  const { p, video, esperas } = sonando();
+  assert.strictEqual(esperas.pop(), 225000);
+  video.currentTime = 1250;
+  p.val("trasSaltar()");
+  assert.ok(esperas.length && esperas.pop() <= 2000, "el relevo siguio programado con la aguja de antes del salto");
+}
+
+function videoAtascado() {
+  const { p, video, pausas } = sonando();
+  p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
+  video.readyState = 2; // cargando, sin pausa
+  p.val("tick()");
+  assert.strictEqual(pausas.length, 1, "el audio siguio sonando con el video atascado");
+}
+
 (async () => {
   await cambioDeVod();
   await deCanalEnDirectoAVod();
   solapeDeTrozos();
+  saltoDentroDeLaVentana();
+  videoAtascado();
   console.log("ok");
   process.exit(0); // las esperas de mentira que queden no deben retener el proceso
 })().catch((e) => {

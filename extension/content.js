@@ -1191,7 +1191,10 @@ function tick() {
     tramoDelTrozo(trozoActual)
   );
 
-  if (video.paused) {
+  // Video atascado cargando (sin pausa): el audio esperaba sonando y se
+  // adelantaba; medido 0,6 s que el 2 % tardaba ~30 s en recuperar. Con el
+  // audio de maestro (pestana oculta) manda el audio, asi que no se espera.
+  if (video.paused || (!audioMaster && video.readyState < 3)) {
     if (!audio.paused) audio.pause();
     return;
   }
@@ -1302,6 +1305,11 @@ function trasSaltar() {
   // otra vez obliga al descodificador a empezar de nuevo y tira a la basura
   // justo lo que ya estaba listo.
   if (Math.abs(audio.currentTime - t) > 0.25) audio.currentTime = t;
+  // El temporizador del relevo se calculo con la aguja de antes del salto.
+  // Medido: tras saltar hacia delante la reserva llegaba tarde, la ventana se
+  // agotaba y se recargaba en seco (microcorte); hacia atras se pediria pronto
+  // y Chrome tiraria su bufer mientras espera.
+  reprogramar();
   if (!video.paused && audio.paused) audio.play().catch(() => {});
 }
 
