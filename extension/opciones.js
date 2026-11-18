@@ -26,6 +26,9 @@ $("guardar").addEventListener("click", async () => {
   try {
     url = new URL(texto);
   } catch {
+    url = null;
+  }
+  if (!url || !/^https?:$/.test(url.protocol)) {
     decir("estado-remoto", "Escribe la direccion entera, con http:// o https:// delante", "bad");
     return;
   }
@@ -35,10 +38,18 @@ $("guardar").addEventListener("click", async () => {
   }
 
   // Hace falta permiso sobre ESE dominio, y solo sobre ese. Este clic es el
-  // gesto del usuario que Chrome exige para poder pedirlo.
-  const origen = `${url.origin}/*`;
-  if (!(await chrome.permissions.contains({ origins: [origen] }))) {
-    const ok = await chrome.permissions.request({ origins: [origen] });
+  // gesto del usuario que Chrome exige para poder pedirlo. Solo se piden los
+  // https (el manifiesto no admite mas); igual que hace puente.js.
+  if (url.protocol === "https:") {
+    const origen = `${url.origin}/*`;
+    let ok = false;
+    try {
+      ok = await chrome.permissions.contains({ origins: [origen] })
+        || await chrome.permissions.request({ origins: [origen] });
+    } catch (e) {
+      decir("estado-remoto", `Chrome no deja pedir permiso para esa direccion: ${e.message}`, "bad");
+      return;
+    }
     if (!ok) {
       decir("estado-remoto", "Sin permiso para ese dominio la extension no puede hablar con el", "bad");
       return;

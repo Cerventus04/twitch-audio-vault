@@ -1676,11 +1676,13 @@ async function enterVod(vodId, elemento = null) {
  * nada: mas vale no sonar que sonar encima de lo que no toca.
  */
 async function enterCanal(login) {
-  const mia = claveRuta;
+  // La generacion, no la ruta: canal -> VOD -> atras al mismo canal deja la
+  // ruta igual y la medida vieja se colaria.
+  const sesion = generacion;
   setStatus("Mirando que suena en esta pagina…");
 
   const reply = await ask({ type: "canal", login });
-  if (claveRuta !== mia) return; // el usuario ya se ha ido a otro sitio
+  if (generacion !== sesion) return; // el usuario ya se ha ido a otro sitio
   if (!reply.ok) {
     setStatus("Twitch Audio Vault no esta abierto", "off");
     return;
@@ -1692,14 +1694,14 @@ async function enterCanal(login) {
   }
 
   const el = await findVideoElement();
-  if (claveRuta !== mia) return;
+  if (generacion !== sesion) return;
   if (!el) {
     setStatus("No encuentro el reproductor", "off");
     return;
   }
 
   const duracion = await duracionDelReproductor(el);
-  if (claveRuta !== mia) return;
+  if (generacion !== sesion) return;
   if (duracion === null) {
     setStatus("Aqui suena el directo, no un VOD grabado");
     return;
@@ -1715,7 +1717,7 @@ async function enterCanal(login) {
     return;
   }
   await enterVod(cual.vod, el);
-  if (claveRuta === mia && track) duracionCanal = duracion;
+  if (generacion === sesion && track) duracionCanal = duracion;
 }
 
 // Que estamos mirando ahora mismo: "v<id>" un VOD, "c<login>" una portada.
@@ -1797,6 +1799,7 @@ const MAX_INTENTOS = 6;
 async function arrancarRuta() {
   if (ocupado) return;
   ocupado = true;
+  const sesion = generacion;
   try {
     const id = vodIdFromUrl();
     if (id) await enterVod(id);
@@ -1806,6 +1809,9 @@ async function arrancarRuta() {
     }
   } finally {
     ocupado = false;
+    // Si se navego mientras tanto, la ruta nueva no pudo arrancar porque esto
+    // estaba ocupado: que lo haga ya, sin esperar 4 s al reintento.
+    if (generacion !== sesion && claveRuta) arrancarRuta();
   }
 }
 
