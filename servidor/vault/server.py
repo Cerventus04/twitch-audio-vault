@@ -45,20 +45,15 @@ async def _sin_cache_en_el_panel(request: Request, call_next):
         respuesta.headers.setdefault("Cache-Control", "no-cache")
     return respuesta
 
-# Solo la extension (chrome-extension://), las paginas de Twitch donde corre el
-# content script, localhost y, si se despliega en un servidor, el dominio
-# propio. No se abre a "*" para que una web cualquiera no pueda sondear el
-# servidor: cualquier pestaña abierta en el navegador alcanza esta maquina.
+# Solo la extension, el propio panel y, si se despliega en un servidor, el
+# dominio propio. No se abre a "*" para que una web cualquiera no pueda sondear
+# el servidor: cualquier pestaña abierta en el navegador alcanza esta maquina.
+# twitch.tv no hace falta: la extension habla con el servidor desde su service
+# worker, y el <audio> de la pagina no necesita CORS.
 _dominio = os.environ.get("VAULT_PUBLIC_ORIGIN", "")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^(chrome-extension|moz-extension)://[a-z0-9-]+$"
-    # La pagina de Twitch pide el audio y lee X-Dura-Real directamente, sin
-    # pasar por el service worker, asi que necesita leer las respuestas.
-    r"|^https://(www\.)?twitch\.tv$"
-    # Chrome resuelve cualquier *.localhost a la maquina local y lo considera
-    # origen de confianza, asi que vale un nombre bonito sin tocar el hosts.
-    r"|^https?://([a-z0-9-]+\.)?(localhost|127\.0\.0\.1)(:\d+)?$"
+    allow_origin_regex=f"^({auth.ORIGENES_PROPIOS})$"
     + (f"|^{re.escape(_dominio)}$" if _dominio else ""),
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -257,10 +252,7 @@ def delete_recording(rec_id: int) -> dict:
                 )
 
     try:
-        p = Path(row["path"])
-        p.unlink(missing_ok=True)
-        # El indice de tiempos que se genera al vuelo se va con el audio.
-        p.with_suffix(p.suffix + ".idx").unlink(missing_ok=True)
+        watcher.borrar_audio(Path(row["path"]))
     except PermissionError:
         raise HTTPException(
             409,

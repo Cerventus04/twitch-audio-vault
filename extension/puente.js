@@ -10,7 +10,6 @@
  */
 "use strict";
 
-const POR_DEFECTO = { serverUrl: "http://localhost:8710", token: "" };
 const $ = (id) => document.getElementById(id);
 
 /** Espera a que el panel haya pintado la seccion (la carga es asincrona). */
@@ -42,7 +41,8 @@ function aviso(texto, malo = false) {
 async function arrancar() {
   if (!(await cuandoExista("panel-extension"))) return;
 
-  const cfg = await chrome.storage.sync.get(POR_DEFECTO);
+  // Muestra el servidor que se esta usando ahora (local o remoto).
+  const cfg = await servidorActivo();
   $("ext-server").value = cfg.serverUrl;
   $("ext-token").value = cfg.token;
   for (const id of ["ext-server", "ext-token", "btn-save-ext"]) {
@@ -52,7 +52,7 @@ async function arrancar() {
   $("ext-chip").classList.add("ok");
 
   $("btn-save-ext").addEventListener("click", async () => {
-    const serverUrl = $("ext-server").value.trim() || POR_DEFECTO.serverUrl;
+    const serverUrl = $("ext-server").value.trim().replace(/\/+$/, "") || LOCAL_URL;
     let url;
     try {
       url = new URL(serverUrl);
@@ -73,7 +73,15 @@ async function arrancar() {
       }
     }
 
-    await chrome.storage.sync.set({ serverUrl, token: $("ext-token").value });
+    // La de este PC no se guarda como remoto: solo se elige ese modo, y la
+    // direccion del remoto se conserva para volver a ella con un clic.
+    if (esLocal(serverUrl)) {
+      await chrome.storage.sync.set({ modo: "local" });
+    } else {
+      await chrome.storage.sync.set({
+        modo: "remoto", remotoUrl: serverUrl, remotoToken: $("ext-token").value,
+      });
+    }
     aviso("Guardado");
   });
 }

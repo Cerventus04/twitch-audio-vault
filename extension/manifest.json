@@ -32,10 +32,11 @@
     },
     {
       "matches": [
-        "http://localhost/*",
-        "http://127.0.0.1/*"
+        "http://localhost:8710/*",
+        "http://127.0.0.1:8710/*"
       ],
       "js": [
+        "ajustes.js",
         "puente.js"
       ],
       "run_at": "document_idle"

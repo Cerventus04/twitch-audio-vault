@@ -268,13 +268,6 @@ function tramoDelTrozo(s) {
   return `${desde} – ${reloj(s.fin + nudge)}`;
 }
 
-// Rastro de lo ultimo que se miro, para poder ver desde el popup por que no
-// arranca sin tener que abrir las herramientas del navegador.
-let diag = "";
-const setDiag = (t) => {
-  diag = t;
-};
-
 // Todo el trafico con el servidor pasa por el service worker (ver background.js).
 const ask = (msg) =>
   new Promise((resolve) =>
@@ -426,7 +419,6 @@ function tomarAudioDelVideo() {
     enrutados.set(video, { ctx, ganancia });
   } catch (e) {
     // Puede fallar si Twitch ya enruta el audio o el navegador lo impide.
-    setDiag(`sin Web Audio: ${e && e.name ? e.name : e}`);
     webaudio = false;
     ctx = null;
     ganancia = null;
@@ -1013,11 +1005,8 @@ function hacerRelevo() {
   // Se apunta UNA vez, o de nuevo solo si el destino se ha ido lejos de donde
   // se mando a descargar. Reapuntar en cada vuelta era el error: cada salto
   // cancelaba la descarga anterior y la reserva no cargaba nunca.
-  let salto1 = null; // distancia del salto de apuntado, si lo hubo
-  let salto2 = null; // idem del ajuste fino
   if (reservaBuscada === null || Math.abs(destino - reservaBuscada) > 1) {
     try {
-      salto1 = destino - (reservaBuscada === null ? reserva.currentTime : reservaBuscada);
       reserva.currentTime = destino;
       reservaBuscada = destino;
     } catch {
@@ -1038,7 +1027,6 @@ function hacerRelevo() {
   const fino = posicionEnReserva(reservaParams);
   if (Math.abs(reserva.currentTime - fino) > DRIFT_SEEK) {
     try {
-      salto2 = fino - reserva.currentTime;
       reserva.currentTime = fino;
     } catch {
       /* fuera de rango: lo arregla el bucle */
@@ -1056,11 +1044,6 @@ function hacerRelevo() {
   // dejarlo puesto haria que el siguiente tick creyera que toca conmutar otra
   // vez (sin reserva) y acabara recargando. Lo repone `programarRelevo`.
   cambioEn = null;
-
-  // Posicion en la escala del VOD de lo que sonaba, medida ANTES de cambiar de
-  // escala: es el unico momento en que el elemento viejo sigue siendo legible.
-  const vodViejo = viejo ? viejo.currentTime - origen + baseOffset + nudge : null;
-  const listoViejo = viejo ? viejo.readyState : null;
 
   // Adoptar la escala del tramo nuevo ANTES de calcular la posicion.
   origen = p.origen;
@@ -1082,25 +1065,7 @@ function hacerRelevo() {
   if (!video.paused && !saltoInterno && !seekUsuario) nuevo.play().catch(() => {});
 
   if (viejo) fundirYSoltar(viejo, nuevo);
-  const vodNuevo = nuevo.currentTime - p.origen + baseOffset + nudge;
-  const salto = vodViejo === null ? null : vodNuevo - vodViejo;
-  dbg(
-    "hacerRelevo CONMUTA a corte=" + recorte +
-    " apuntado=" + (salto1 === null ? "no" : salto1.toFixed(3)) +
-    " fino=" + (salto2 === null ? "no" : salto2.toFixed(3)) +
-    " vodViejo=" + (vodViejo === null ? "-" : vodViejo.toFixed(3)) +
-    " vodNuevo=" + vodNuevo.toFixed(3) +
-    " SALTO=" + (salto === null ? "-" : (salto >= 0 ? "+" : "") + salto.toFixed(3)) +
-    " listoViejo=" + listoViejo + " listoNuevo=" + nuevo.readyState
-  );
-  // Cuanto silencio hay de verdad: del momento de conmutar al primer
-  // fotograma de audio que el elemento nuevo entrega.
-  const t0 = performance.now();
-  const alSonar = () => {
-    nuevo.removeEventListener("playing", alSonar);
-    dbg("hacerRelevo SUENA tras " + Math.round(performance.now() - t0) + " ms");
-  };
-  nuevo.addEventListener("playing", alSonar);
+  dbg("hacerRelevo CONMUTA a corte=" + recorte);
   programarRelevo(); // encadena el siguiente, sin cortes
   return true;
 }
@@ -1172,7 +1137,6 @@ function tick() {
         fallbackAudio("fin-de-grabacion");
         return;
       }
-      setDiag("tramo mas corto de lo pedido: recargando");
       ponerTrozo(trozoActual, enVod, "tramo-corto");
       return;
     }
@@ -1186,10 +1150,8 @@ function tick() {
       // Solo si el fichero se agota del todo se recarga (lo hace la rama de
       // `ended` de mas arriba).
       if (!audio.ended) {
-        setDiag("relevo no listo: apurando la ventana");
         return;
       }
-      setDiag("el relevo no llego a tiempo: recargando");
       ponerTrozo(trozoActual, enVod, "relevo-tarde");
       return;
     }
@@ -1206,7 +1168,6 @@ function tick() {
       fallbackAudio("fin-de-grabacion");
       return;
     }
-    setDiag("fichero acabado antes de tiempo: recargando");
     ponerTrozo(trozoActual, enVod, "fichero-acabado");
     return;
   }
@@ -1509,7 +1470,6 @@ function vigilarElemento() {
   const nuevo = videoPrincipal();
   if (!nuevo) return video.isConnected;
   if (nuevo === video) return true;
-  setDiag("el reproductor cambio: reenganchando");
   engancharVideo(nuevo);
   trozoActual = null; // obliga a recolocar el audio sobre el reproductor nuevo
   return true;
@@ -1734,16 +1694,13 @@ async function enterCanal(login) {
   const mia = claveRuta;
   setStatus("Mirando que suena en esta pagina…");
 
-  setDiag("preguntando por el canal");
   const reply = await ask({ type: "canal", login });
   if (claveRuta !== mia) return; // el usuario ya se ha ido a otro sitio
   if (!reply.ok) {
-    setDiag(`el servidor fallo: ${reply.error || "?"}`);
     setStatus("Twitch Audio Vault no esta abierto", "off");
     return;
   }
   const videos = (reply.data && reply.data.videos) || [];
-  setDiag(`${videos.length} vods grabados de ${login}`);
   if (!videos.length) {
     setStatus("No hay grabaciones de este canal", "off");
     return;
@@ -1759,13 +1716,9 @@ async function enterCanal(login) {
   const duracion = await duracionDelReproductor(el);
   if (claveRuta !== mia) return;
   if (duracion === null) {
-    setDiag("duracion no fija o no legible (parece directo)");
     setStatus("Aqui suena el directo, no un VOD grabado");
     return;
   }
-  setDiag(`reproductor dura ${Math.round(duracion)} s; grabados ${videos
-    .map((v) => v.duracion)
-    .join(", ")}`);
 
   // Tolerancia de 25 s: la duracion que da Twitch va redondeada al segundo y
   // el reproductor no siempre coincide al decimal.
@@ -1792,7 +1745,6 @@ function onRouteChange() {
   claveRuta = clave;
   intentos = 0;
   proximoIntento = Date.now() + 4000;
-  diag = "";
   if (clave) arrancarRuta();
 }
 
@@ -1833,6 +1785,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
   }
 
   respond({ ok: false, error: "peticion desconocida" });
+});
+
+// Si se cambia entre este PC y el servidor remoto, lo que suena viene del otro:
+// se desmonta y se vuelve a buscar el audio, como si se acabara de entrar.
+chrome.storage.onChanged.addListener((cambios, zona) => {
+  if (zona !== "sync" || !(cambios.modo || cambios.remotoUrl || cambios.remotoToken)) return;
+  // La primera vez se escribe `modo` al convertir el formato antiguo: no es un
+  // cambio de servidor y no hay que cortar lo que este sonando.
+  if (cambios.modo && cambios.modo.oldValue === undefined) return;
+  claveRuta = null;
+  onRouteChange();
 });
 
 // El volumen elegido se recuerda entre VODs y entre sesiones.
@@ -1876,7 +1839,6 @@ setInterval(() => {
   if (Date.now() < proximoIntento) return;
   intentos += 1;
   proximoIntento = Date.now() + 4000;
-  setDiag(`reintento ${intentos} de ${MAX_INTENTOS}`);
   arrancarRuta();
 }, 500);
 

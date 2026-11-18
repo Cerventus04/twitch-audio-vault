@@ -32,6 +32,12 @@ def _modulo_indice(audio: Path):
     return None, ""
 
 
+def borrar_audio(audio: Path) -> None:
+    """Borra el audio y sus indices (.idx del AAC, .m4idx del MP4)."""
+    for sufijo in ("", ".idx", ".m4idx"):
+        audio.with_suffix(audio.suffix + sufijo).unlink(missing_ok=True)
+
+
 def _indice_al_dia(audio: Path, sufijo: str) -> bool:
     """True si el indice guardado cubre ya todo el fichero."""
     cache = audio.with_suffix(audio.suffix + sufijo)
@@ -387,9 +393,7 @@ class Watcher(threading.Thread):
             (cutoff,),
         )
         for row in old:
-            p = Path(row["path"])
-            p.unlink(missing_ok=True)
-            p.with_suffix(p.suffix + ".idx").unlink(missing_ok=True)
+            borrar_audio(Path(row["path"]))
             with db.tx() as conn:
                 conn.execute("DELETE FROM recordings WHERE id=?", (row["id"],))
 

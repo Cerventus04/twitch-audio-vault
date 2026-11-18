@@ -10,30 +10,57 @@
   }
   .caja { max-width: 480px; }
   h1 { font-size: 17px; margin: 0 0 4px; }
-  p { color: #adadb8; }
+  h2 { font-size: 14px; margin: 26px 0 4px; }
+  p { color: #adadb8; margin: 4px 0 12px; }
   code { background: #1f1f23; padding: 1px 5px; border-radius: 4px; }
+  label { display: block; color: #adadb8; font-size: 12.5px; margin: 12px 0 4px; }
+  input {
+    width: 100%; box-sizing: border-box; background: #0e0e10; color: #efeff1;
+    border: 1px solid #3a3a3d; border-radius: 6px; padding: 8px 10px; font: inherit;
+  }
+  input:focus { outline: none; border-color: #9147ff; }
   button {
     background: #9147ff; color: #fff; border: 0; border-radius: 6px;
     padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer;
+    margin-top: 14px;
   }
   button:hover { background: #a970ff; }
-  #estado { margin-top: 14px; }
+  .estado { margin-top: 10px; min-height: 1.6em; }
   .ok { color: #00f593; }
   .bad { color: #ff8f8f; }
 </style>
 </head>
 <body>
 <div class="caja">
-  <h1>Permiso para el servidor remoto</h1>
-  <p id="explica">Nada pendiente.</p>
-  <button id="dar" hidden>Dar permiso</button>
-  <div id="estado"></div>
-  <p style="margin-top:22px">
-    El servidor se elige en la pestaña <b>Ajustes</b> del panel, no aqui. Esta
-    ventana solo existe porque el permiso sobre un dominio tiene que pedirlo
-    una pagina de la extension.
+  <h1>Twitch Audio Vault</h1>
+  <p>
+    En el popup eliges si el audio sale de <b>este PC</b> o del <b>servidor</b>.
+    Aqui se guarda la direccion del servidor, para que cambiar sea solo un clic.
   </p>
+
+  <h2>Servidor remoto</h2>
+  <label for="url">Direccion</label>
+  <input id="url" type="text" spellcheck="false" placeholder="https://vault.ejemplo.ts.net">
+  <label for="token">Contraseña</label>
+  <input id="token" type="password" placeholder="la auth_token de su config.json">
+  <button id="guardar">Guardar y usar el servidor</button>
+  <div class="estado" id="estado-remoto"></div>
+
+  <h2>Este PC</h2>
+  <p>
+    Siempre <code>http://localhost:8710</code>, sin contraseña. Para que grabe
+    tiene que estar en marcha el programa de la carpeta <code>servidor</code>
+    (<code>Iniciar.vbs</code>), y solo graba mientras el PC esta encendido.
+  </p>
+
+  <div id="permiso" hidden>
+    <h2>Permiso pendiente</h2>
+    <p id="explica"></p>
+    <button id="dar">Dar permiso</button>
+    <div class="estado" id="estado"></div>
+  </div>
 </div>
+<script src="ajustes.js"></script>
 <script src="opciones.js"></script>
 </body>
 </html>

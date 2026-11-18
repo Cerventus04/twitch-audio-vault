@@ -59,12 +59,29 @@
     min-width: 44px; text-align: right;
   }
 
+  /* --- donde se graba: este equipo o el servidor remoto --- */
+  .modo {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+    background: #0e0e10; border-radius: 7px; padding: 3px; margin-bottom: 10px;
+  }
+  .modo button {
+    background: transparent; color: #adadb8; border: 0; border-radius: 5px;
+    padding: 5px 0; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .modo button:hover { color: #efeff1; }
+  .modo button[aria-pressed="true"] { background: #9147ff; color: #fff; font-weight: 600; }
+
 
 </style>
 </head>
 <body>
 <div class="shell">
   <h1><img src="icons/icon32.png" alt="">Twitch Audio Vault</h1>
+
+  <div class="modo" role="group" aria-label="Donde se graba">
+    <button type="button" id="modo-local" aria-pressed="false" title="El grabador corre en este PC">Este PC</button>
+    <button type="button" id="modo-remoto" aria-pressed="false" title="El grabador corre en otro equipo">Servidor</button>
+  </div>
 
   <div class="row"><span class="dot" id="dot"></span><span id="state">comprobando…</span></div>
   <div class="muted" id="detail"></div>
@@ -92,6 +109,7 @@
 
 </div>
 
+  <script src="ajustes.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

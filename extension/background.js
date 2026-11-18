@@ -6,11 +6,10 @@
  */
 "use strict";
 
-const POR_DEFECTO = { serverUrl: "http://localhost:8710", token: "" };
+importScripts("ajustes.js");
 
-async function ajustes() {
-  return chrome.storage.sync.get(POR_DEFECTO);
-}
+// Local o remoto segun lo elegido en el popup (ver ajustes.js).
+const ajustes = servidorActivo;
 
 /** Quita la barra final para poder concatenar rutas sin duplicarla. */
 const limpiar = (url) => String(url || "").trim().replace(/\/+$/, "");

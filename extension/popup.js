@@ -1,6 +1,5 @@
 "use strict";
 
-const POR_DEFECTO = { serverUrl: "http://localhost:8710", token: "" };
 const $ = (id) => document.getElementById(id);
 
 let tabId = null;
@@ -34,6 +33,30 @@ const alaPestana = (msg) =>
 
 // ------------------------------------------------------- estado del servidor
 
+async function pintarModo() {
+  const { modo } = await servidorActivo();
+  $("modo-local").setAttribute("aria-pressed", String(modo === "local"));
+  $("modo-remoto").setAttribute("aria-pressed", String(modo === "remoto"));
+}
+
+async function elegirModo(modo) {
+  const { remotoUrl } = await leerAjustes();
+  // Sin direccion del remoto no hay a donde cambiar: se pide en las opciones.
+  if (modo === "remoto" && !remotoUrl) {
+    chrome.runtime.openOptionsPage();
+    return;
+  }
+  await chrome.storage.sync.set({ modo });
+  await pintarModo();
+  $("dot").className = "dot";
+  $("state").textContent = "comprobando…";
+  $("detail").textContent = "";
+  comprobarServidor();
+}
+
+$("modo-local").addEventListener("click", () => elegirModo("local"));
+$("modo-remoto").addEventListener("click", () => elegirModo("remoto"));
+
 async function comprobarServidor() {
   const r = await alFondo({ type: "status" });
   if (r.ok) {
@@ -48,16 +71,27 @@ async function comprobarServidor() {
       ? `grabando: ${s.watching[0]}`
       : `grabando ${n} canales`;
     $("state").title = n > 1 ? s.watching.join(", ") : "";
-    const { serverUrl } = await chrome.storage.sync.get(POR_DEFECTO);
-    $("detail").innerHTML =
-      `${humanBytes(s.disk_used_bytes)} guardados · ` +
-      `<a href="${serverUrl}" target="_blank">abrir panel</a>`;
+    const { serverUrl } = await servidorActivo();
+    $("detail").textContent = `${humanBytes(s.disk_used_bytes)} guardados · `;
+    const a = document.createElement("a");
+    a.href = serverUrl;
+    a.target = "_blank";
+    a.textContent = "abrir panel";
+    $("detail").append(a);
   } else {
+    const { modo } = await servidorActivo();
     $("dot").className = "dot bad";
     $("state").textContent = "sin conexion";
-    $("detail").textContent =
-      (r.error || "No se puede contactar con el servidor.") +
-      " Se elige en Ajustes del panel."
+    $("detail").textContent = modo === "local"
+      ? "El grabador de este PC no esta en marcha. Abrelo con Iniciar.vbs en la carpeta servidor."
+      : (r.error || "No se puede contactar con el servidor.");
+    if (modo === "remoto") {
+      const a = document.createElement("a");
+      a.href = "#";
+      a.textContent = " Cambiar direccion";
+      a.addEventListener("click", (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); });
+      $("detail").append(a);
+    }
   }
 }
 
@@ -112,4 +146,5 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   setInterval(refrescarVod, 1000);
 });
 
+pintarModo();
 comprobarServidor();
