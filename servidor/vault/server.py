@@ -8,6 +8,7 @@ import re
 import secrets
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote
 
@@ -21,7 +22,20 @@ from . import adts, auth, config, db, mp4idx, twitch, watcher
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
 
-app = FastAPI(title="Twitch Audio Vault", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def _vida(_app):
+    """Arranque: base de datos y vigilante.
+
+    Antes iba en @app.on_event("startup"), que FastAPI da por obsoleto. Si lo
+    retira, el servidor seguiria contestando pero el vigilante no arrancaria:
+    se dejaria de grabar sin ningun error a la vista.
+    """
+    db.init()
+    watcher.start()
+    yield
+
+
+app = FastAPI(title="Twitch Audio Vault", docs_url=None, redoc_url=None, lifespan=_vida)
 
 app.middleware("http")(auth.middleware)
 
@@ -60,12 +74,6 @@ app.add_middleware(
         "Content-Range", "Accept-Ranges", "Content-Length", "X-Dura-Real",
     ],
 )
-
-
-@app.on_event("startup")
-def _startup() -> None:
-    db.init()
-    watcher.start()
 
 
 # ---------------------------------------------------------------- estado

@@ -38,7 +38,23 @@ def preparar() -> int:
         return cur.lastrowid
 
 
+def arranque_pone_en_marcha_el_vigilante() -> None:
+    """Si el arranque no llama a watcher.start, el servidor contesta pero no
+    graba nada, y no hay ningun error a la vista."""
+    from vault import watcher
+
+    llamado = []
+    real, watcher.start = watcher.start, lambda: llamado.append(1)
+    try:
+        with TestClient(server.app) as c:  # con `with` se ejecuta el arranque
+            assert c.get("/api/status").status_code == 200
+    finally:
+        watcher.start = real
+    assert llamado == [1], llamado
+
+
 def main() -> None:
+    arranque_pone_en_marcha_el_vigilante()
     rid = preparar()
     c = TestClient(server.app)  # sin `with`: no arranca el vigilante
 
