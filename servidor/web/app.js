@@ -349,7 +349,7 @@ const dd = {
     $("#dd-menu").innerHTML = opciones
       .map(
         (o) =>
-          `<li role="option" data-valor="${escape(o.valor)}"` +
+          `<li role="option" tabindex="0" data-valor="${escape(o.valor)}"` +
           ` aria-selected="${o.valor === filtroCanal}">${escape(o.texto)}</li>`
       )
       .join("");
@@ -363,12 +363,20 @@ $("#dd-btn").addEventListener("click", (e) => {
   dd.abrir(!dd.abierto);
 });
 
-$("#dd-menu").addEventListener("click", (e) => {
+function elegirCanal(e) {
   const li = e.target.closest("li");
   if (!li) return;
   filtroCanal = li.dataset.valor;
   dd.abrir(false);
+  $("#dd-btn").focus();
   loadRecordings();
+}
+$("#dd-menu").addEventListener("click", elegirCanal);
+// Con teclado tambien: sin esto el menu se abria pero no se podia elegir nada.
+$("#dd-menu").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  elegirCanal(e);
 });
 
 // Cerrar al pulsar fuera o con Escape, como cualquier menu.
