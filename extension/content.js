@@ -1028,9 +1028,13 @@ function hacerRelevo() {
   // falta: el relevo entra en la vuelta del bucle siguiente al punto de cambio
   // (hasta 250 ms tarde) con la reserva aun aparcada en el, y sin moverla se
   // repetia ese trozo (medido: 160 ms oidos dos veces, y 10 s desfasado).
-  const fino = posicionEnReserva(reservaParams);
+  // Se sigue donde se quedo el audio que suena, no el video: entre los dos
+  // hay hasta DRIFT_TRIM de holgura, y saltar a la del video repetia 95 ms.
+  const fino = audio
+    ? reservaParams.origen + (posicionAudio() - baseOffset)
+    : posicionEnReserva(reservaParams);
   const desfase = Math.abs(reserva.currentTime - fino);
-  if (desfase > DRIFT_SEEK || (desfase > DRIFT_TRIM && enBufer(reserva, fino))) {
+  if (desfase > DRIFT_SEEK || (desfase > 0.01 && enBufer(reserva, fino))) {
     try {
       reserva.currentTime = fino;
     } catch {

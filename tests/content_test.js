@@ -145,14 +145,16 @@ function saltoDentroDeLaVentana() {
 
 function relevoTardio() {
   // La reserva espera aparcada en el corte 1290 (su segundo 0) y el relevo
-  // entra 160 ms despues: tiene que sonar desde ahi, no repetir esos 160 ms.
-  const { p, video } = sonando();
+  // entra 160 ms despues: tiene que seguir donde va el audio que suena (no el
+  // video, 50 ms por detras), sin repetir nada.
+  const { p, video, audio } = sonando();
+  audio.currentTime = 290.16;
+  video.currentTime = 1290.11;
   const reserva = {
     ...medio(300), readyState: 4, currentTime: 0,
     buffered: { length: 1, start: () => 0, end: () => 300 },
   };
   Object.assign(p.ctx, { reservaFalsa: reserva });
-  video.currentTime = 1290.16;
   p.val(`reserva = reservaFalsa; relevoListo = true; reservaBuscada = 0;
     reservaParams = { origen: -1290, inicioFichero: 0, recorte: 1290, ventanaFin: 300 }`);
   assert.strictEqual(p.val("hacerRelevo()"), true);
