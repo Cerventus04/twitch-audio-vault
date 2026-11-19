@@ -143,6 +143,22 @@ function saltoDentroDeLaVentana() {
   assert.ok(esperas.length && esperas.pop() <= 2000, "el relevo siguio programado con la aguja de antes del salto");
 }
 
+function relevoTardio() {
+  // La reserva espera aparcada en el corte 1290 (su segundo 0) y el relevo
+  // entra 160 ms despues: tiene que sonar desde ahi, no repetir esos 160 ms.
+  const { p, video } = sonando();
+  const reserva = {
+    ...medio(300), readyState: 4, currentTime: 0,
+    buffered: { length: 1, start: () => 0, end: () => 300 },
+  };
+  Object.assign(p.ctx, { reservaFalsa: reserva });
+  video.currentTime = 1290.16;
+  p.val(`reserva = reservaFalsa; relevoListo = true; reservaBuscada = 0;
+    reservaParams = { origen: -1290, inicioFichero: 0, recorte: 1290, ventanaFin: 300 }`);
+  assert.strictEqual(p.val("hacerRelevo()"), true);
+  assert.ok(Math.abs(reserva.currentTime - 0.16) < 0.001, `la reserva arranco en ${reserva.currentTime}, repitiendo lo ya oido`);
+}
+
 function videoAtascado() {
   const { p, video, pausas } = sonando();
   p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
@@ -181,6 +197,7 @@ async function falloEnLaPrimeraVentana() {
   solapeDeTrozos();
   saltoDentroDeLaVentana();
   videoAtascado();
+  relevoTardio();
   volumenDeTwitch();
   console.log("ok");
   process.exit(0); // las esperas de mentira que queden no deben retener el proceso

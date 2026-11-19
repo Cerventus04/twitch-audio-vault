@@ -987,6 +987,12 @@ function fundirYSoltar(viejo, nuevo) {
   escalon();
 }
 
+const enBufer = (el, t) => {
+  const b = el.buffered;
+  for (let i = 0; i < b.length; i++) if (t >= b.start(i) && t < b.end(i)) return true;
+  return false;
+};
+
 /** Cambia al elemento de reserva. Devuelve false si aun no estaba listo. */
 function hacerRelevo() {
   if (!reserva || !relevoListo) return false;
@@ -1017,11 +1023,14 @@ function hacerRelevo() {
     );
     return false;
   }
-  // Ajuste fino, pero solo si de verdad hace falta: cualquier salto abre una
-  // peticion nueva al servidor. Por debajo de DRIFT_SEEK no se toca nada, que
-  // de eso ya se encarga el bucle estirando el ritmo, y eso no se oye.
+  // Ajuste fino. Fuera de lo descargado un salto abre una peticion nueva, asi
+  // que ahi solo se salta pasado DRIFT_SEEK. Dentro no cuesta nada, y hace
+  // falta: el relevo entra en la vuelta del bucle siguiente al punto de cambio
+  // (hasta 250 ms tarde) con la reserva aun aparcada en el, y sin moverla se
+  // repetia ese trozo (medido: 160 ms oidos dos veces, y 10 s desfasado).
   const fino = posicionEnReserva(reservaParams);
-  if (Math.abs(reserva.currentTime - fino) > DRIFT_SEEK) {
+  const desfase = Math.abs(reserva.currentTime - fino);
+  if (desfase > DRIFT_SEEK || (desfase > DRIFT_TRIM && enBufer(reserva, fino))) {
     try {
       reserva.currentTime = fino;
     } catch {
