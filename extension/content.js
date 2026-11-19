@@ -15,6 +15,10 @@ const DRIFT_SEEK = 0.5; // desfase a partir del cual se salta en seco
 // y que converja solo. Solo se salta si esta tan lejos que ya no converge.
 const DRIFT_MAX_ADELANTO = 5;
 const DRIFT_TRIM = 0.06; // desfase a partir del cual se corrige con velocidad
+// Audio POR DETRAS: desde aqui se salta en vez de acelerar. Con DRIFT_SEEK
+// (0,5 s) un atraso de 0,3 s tras un salto tardaba ~15 s en cerrarse al 2 %
+// (medido 2 de 65 saltos en Chrome); saltar 0,3 s una vez se nota menos.
+const DRIFT_ATRASO = 0.2;
 const TICK_MS = 250;
 // Anticipacion del relevo. timeupdate/ended tambien lo comprueban; ningun
 // margen garantiza continuidad si Chrome suspende el proceso o la descarga.
@@ -1253,7 +1257,7 @@ function tick() {
     // rebufferea lento. Rebobinar el audio seria repetir lo ya oido, asi que
     // se adelanta el VIDEO hasta donde va el audio. El sonido no se toca.
     colocarVideo(posicionAudio(), "alcanzar-audio");
-  } else if (drift < -DRIFT_SEEK) {
+  } else if (drift < -DRIFT_ATRASO) {
     // Audio por detras. OJO: hay dos motivos muy distintos para eso.
     //
     // Si es desfase de verdad, adelantar la aguja es correcto: salta un poco

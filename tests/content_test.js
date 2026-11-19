@@ -161,6 +161,15 @@ function relevoTardio() {
   assert.ok(Math.abs(reserva.currentTime - 0.16) < 0.001, `la reserva arranco en ${reserva.currentTime}, repitiendo lo ya oido`);
 }
 
+function audioAtrasado() {
+  // 0,3 s por detras del video: se salta a su sitio, no se acelera al 2 %.
+  const { p, video, audio } = sonando();
+  p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
+  video.currentTime = 1020.3; // el audio sigue en su 20 (= 1020 del VOD)
+  p.val("tick()");
+  assert.ok(Math.abs(audio.currentTime - 20.3) < 0.001, `el audio siguio ${Math.round((20.3 - audio.currentTime) * 1000)} ms atras`);
+}
+
 function videoAtascado() {
   const { p, video, pausas } = sonando();
   p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
@@ -199,6 +208,7 @@ async function falloEnLaPrimeraVentana() {
   solapeDeTrozos();
   saltoDentroDeLaVentana();
   videoAtascado();
+  audioAtrasado();
   relevoTardio();
   volumenDeTwitch();
   console.log("ok");
