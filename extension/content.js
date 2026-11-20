@@ -15,6 +15,7 @@ const DRIFT_SEEK = 0.5; // desfase a partir del cual se salta en seco
 // y que converja solo. Solo se salta si esta tan lejos que ya no converge.
 const DRIFT_MAX_ADELANTO = 5;
 const DRIFT_TRIM = 0.06; // desfase a partir del cual se corrige con velocidad
+const DRIFT_TRIM_FIN = 0.02; // y hasta donde se sigue corrigiendo una vez empezado
 // Audio POR DETRAS: desde aqui se salta en vez de acelerar. Con DRIFT_SEEK
 // (0,5 s) un atraso de 0,3 s tras un salto tardaba ~15 s en cerrarse al 2 %
 // (medido 2 de 65 saltos en Chrome); saltar 0,3 s una vez se nota menos.
@@ -1285,8 +1286,12 @@ function tick() {
     ultimoSaltoAudio = performance.now();
     audio.currentTime = t;
     audio.playbackRate = tasaUsuario;
-  } else if (Math.abs(drift) > DRIFT_TRIM) {
-    // 2 % arriba o abajo: converge en un par de segundos y no se nota.
+  } else if (Math.abs(drift) > (audio.playbackRate !== tasaUsuario ? DRIFT_TRIM_FIN : DRIFT_TRIM)) {
+    // 2 % arriba o abajo: converge en un par de segundos y no se nota. Ya
+    // corrigiendo, se sigue hasta DRIFT_TRIM_FIN: con un solo umbral, un
+    // desfase que rondaba los 60 ms cambiaba de velocidad cada segundo (medido:
+    // 17 cambios en 32 s) y cada cambio de Chrome entre estirar o no el sonido
+    // es un chasquido: el "petardeo" casi continuo.
     audio.playbackRate = tasaUsuario * (drift > 0 ? 0.98 : 1.02);
   } else {
     audio.playbackRate = tasaUsuario;

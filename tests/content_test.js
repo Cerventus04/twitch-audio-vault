@@ -186,6 +186,21 @@ function vueltaConVideoAtrasado() {
   assert.strictEqual(video.currentTime, 1020, "el video se quedo 1 s detras al volver");
 }
 
+function sinCambiosDeVelocidadEnElUmbral() {
+  // Desfase que ronda los 60 ms: empieza a corregir y no suelta hasta bajar de
+  // 20 ms, en vez de alternar x1/x1,02 en cada vuelta (el petardeo).
+  const { p, video, audio } = sonando();
+  p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
+  const rates = [];
+  for (const atras of [0.07, 0.05, 0.07, 0.04, 0.015]) {
+    video.currentTime = 1020 + atras;
+    audio.currentTime = 20;
+    p.val("tick()");
+    rates.push(audio.playbackRate);
+  }
+  assert.deepStrictEqual(rates, [1.02, 1.02, 1.02, 1.02, 1], `cambio de velocidad en el umbral: ${rates}`);
+}
+
 function videoAtascado() {
   const { p, video, pausas } = sonando();
   p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
@@ -224,6 +239,7 @@ async function falloEnLaPrimeraVentana() {
   solapeDeTrozos();
   saltoDentroDeLaVentana();
   videoAtascado();
+  sinCambiosDeVelocidadEnElUmbral();
   vueltaConVideoAtrasado();
   audioAtrasado();
   relevoTardio();
