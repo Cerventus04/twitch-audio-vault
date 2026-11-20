@@ -19,6 +19,12 @@ const DRIFT_TRIM = 0.06; // desfase a partir del cual se corrige con velocidad
 // (0,5 s) un atraso de 0,3 s tras un salto tardaba ~15 s en cerrarse al 2 %
 // (medido 2 de 65 saltos en Chrome); saltar 0,3 s una vez se nota menos.
 const DRIFT_ATRASO = 0.2;
+// Tras un salto el audio tarda en volver a sonar, y con la CPU ocupada se
+// vuelve a quedar 0,2 s atras: saltaba cada vuelta del bucle (medido: cada
+// 200-300 ms, -280/-88/-189/-21 ms) y esa rafaga de microcortes es el
+// "petardeo". Entre salto y salto corrige el 2 %, que no corta.
+const ESPERA_SALTO_AUDIO = 2000;
+let ultimoSaltoAudio = -Infinity;
 const TICK_MS = 250;
 // Anticipacion del relevo. timeupdate/ended tambien lo comprueban; ningun
 // margen garantiza continuidad si Chrome suspende el proceso o la descarga.
@@ -1263,7 +1269,7 @@ function tick() {
     // rebufferea lento. Rebobinar el audio seria repetir lo ya oido, asi que
     // se adelanta el VIDEO hasta donde va el audio. El sonido no se toca.
     colocarVideo(posicionAudio(), "alcanzar-audio");
-  } else if (drift < -DRIFT_ATRASO) {
+  } else if (drift < -DRIFT_ATRASO && performance.now() - ultimoSaltoAudio > ESPERA_SALTO_AUDIO) {
     // Audio por detras. OJO: hay dos motivos muy distintos para eso.
     //
     // Si es desfase de verdad, adelantar la aguja es correcto: salta un poco
@@ -1276,6 +1282,7 @@ function tick() {
     // readyState < HAVE_FUTURE_DATA significa que no hay con que seguir
     // sonando: en ese caso no se toca nada y se espera a que llegue.
     if (audio.readyState < 3) return;
+    ultimoSaltoAudio = performance.now();
     audio.currentTime = t;
     audio.playbackRate = tasaUsuario;
   } else if (Math.abs(drift) > DRIFT_TRIM) {

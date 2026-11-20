@@ -168,6 +168,13 @@ function audioAtrasado() {
   video.currentTime = 1020.3; // el audio sigue en su 20 (= 1020 del VOD)
   p.val("tick()");
   assert.ok(Math.abs(audio.currentTime - 20.3) < 0.001, `el audio siguio ${Math.round((20.3 - audio.currentTime) * 1000)} ms atras`);
+  // Con la CPU ocupada vuelve a quedarse atras al momento: no se salta otra
+  // vez en la vuelta siguiente (eso era el petardeo), se acelera.
+  audio.currentTime = 20.3;
+  video.currentTime = 1020.6;
+  p.val("tick()");
+  assert.strictEqual(audio.currentTime, 20.3, "volvio a saltar en la vuelta siguiente");
+  assert.ok(audio.playbackRate > 1, "no acelero para alcanzar al video");
 }
 
 function vueltaConVideoAtrasado() {
