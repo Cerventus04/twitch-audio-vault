@@ -174,7 +174,13 @@ function liderAudio(motivo) {
 // anterior (una milesima) eso significaba un seek a Twitch CADA vez que
 // volvias. Por debajo de este margen sale mas a cuenta dejarlo estar y que lo
 // corrija el audio, que es mucho mas barato de recolocar.
-const TOLERANCIA_VIDEO = 2;
+//
+// Pero el audio no se rebobina: si va por delante solo se frena un 2 %. Con
+// 2 s de margen, volver con el video 1 s atras dejaba casi un minuto
+// descuadrado, y con la CPU ocupada el video oculto va al 65 % (medido: 5 s
+// perdidos en 16), asi que pasaba en casi cualquier alt-tab. El tiron de
+// imagen al volver se nota menos que ese minuto de desfase.
+const TOLERANCIA_VIDEO = 0.3;
 
 function colocarVideo(t, motivo) {
   if (!video || !Number.isFinite(t)) return;

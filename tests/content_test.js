@@ -170,6 +170,15 @@ function audioAtrasado() {
   assert.ok(Math.abs(audio.currentTime - 20.3) < 0.001, `el audio siguio ${Math.round((20.3 - audio.currentTime) * 1000)} ms atras`);
 }
 
+function vueltaConVideoAtrasado() {
+  // Vuelta a la pestaña con el video 1 s detras del audio (Chrome lo frena
+  // oculto): se coloca en el audio, no se deja un minuto descuadrado.
+  const { p, video } = sonando();
+  video.currentTime = 1019;
+  p.val("audioMaster = true; devolverReloj('prueba')");
+  assert.strictEqual(video.currentTime, 1020, "el video se quedo 1 s detras al volver");
+}
+
 function videoAtascado() {
   const { p, video, pausas } = sonando();
   p.val("vigilarElemento = () => true; sigueSiendoElVod = () => true");
@@ -208,6 +217,7 @@ async function falloEnLaPrimeraVentana() {
   solapeDeTrozos();
   saltoDentroDeLaVentana();
   videoAtascado();
+  vueltaConVideoAtrasado();
   audioAtrasado();
   relevoTardio();
   volumenDeTwitch();
